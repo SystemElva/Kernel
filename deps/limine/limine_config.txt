@@ -1,5 +1,5 @@
-timeout: 0
+timeout: 5
 
-/System Elva
+/SystemElva
     protocol: limine
-    kernel_path: boot():/kernelx64
+    kernel_path: boot():/kernelaa64

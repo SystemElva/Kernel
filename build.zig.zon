@@ -2,7 +2,7 @@
     .name = .SElva_kernel,
     .version = "0.0.0",
 
-    .fingerprint = 0x5a7e9f9d46f8715e,
+    .fingerprint = 0xfa81a7ec68ed921d,
     .minimum_zig_version = "0.14.0",
 
     .dependencies = .{
