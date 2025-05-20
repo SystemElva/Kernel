@@ -42,14 +42,14 @@ pub fn build(b: *std.Build) void {
     });
     
     kernel_exe.entry = undefined;
-    kernel_exe.setLinkerScript(b.path("linkScript.ld"));
+    kernel_exe.setLinkerScript(b.path("link/aarch64.ld"));
     
     const kernel_install = b.addInstallArtifact(kernel_exe, .{
         .dest_sub_path = "disk/kernelaa64"
     });
 
     // generate disk image
-    var disk = imageBuilder.addBuildGPTDiskImage(b, 20*MiB + GPTr, "lumiOS.img");
+    var disk = imageBuilder.addBuildGPTDiskImage(b, 20*MiB + GPTr, "SystemElva.img");
     disk.addPartition(.vFAT, "main", "zig-out/disk", 15*MiB);
 
     disk.step.dependOn(install_bootloader_step);
@@ -86,7 +86,7 @@ pub fn build(b: *std.Build) void {
         //"-s", "-S",
 
         // Disk
-        "-drive", "id=hd0,file=zig-out/lumiOS.img,format=raw,if=none",
+        "-drive", "id=hd0,file=zig-out/SystemElva.img,format=raw,if=none",
     });
 
     // default (only build)
