@@ -11,16 +11,15 @@ pub export var hhdm_request: limine.HhdmRequest = .{};
 pub export var base_revision: limine.BaseRevision = .{ .revision = 2 };
 
 
-export fn __boot_entry__() callconv(.C) noreturn {
+pub export fn __boot_entry__() callconv(.C) noreturn {
     
-    if (framebuffer_request.response == null) done();
-    if (framebuffer_request.response.?.framebuffer_count < 1) done();
+    if (framebuffer_request.response == null or framebuffer_request.response.?.framebuffer_count < 1) done();
     if (memory_map_request.response == null) done();
     if (kernel_addr_request.response == null) done();
     if (hhdm_request.response == null) done();
     if (device_tree_blob_request.response == null) done();
 
-    const fbuffer = framebuffer_request.response.?.framebuffers_ptr[0];
+    const fbuffer = framebuffer_request.response.?.framebuffers()[0];
     const mmap = memory_map_request.response.?;
     const addr = kernel_addr_request.response.?;
     const hhdr = hhdm_request.response.?;
@@ -42,7 +41,7 @@ export fn __boot_entry__() callconv(.C) noreturn {
     };
 
     root.main(boot_info) catch done();
-    unreachable;
+    done();
 }
 
 fn done() noreturn {
