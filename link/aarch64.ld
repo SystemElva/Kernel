@@ -1,8 +1,9 @@
 OUTPUT_FORMAT(elf64-littleaarch64)
-ENTRY(__boot_entry__)
 
 KERNEL_VIRT_START = 0xffffffff80000000;
 KERNEL_STACK_SIZE = 0x4000;
+
+ENTRY(__boot_entry__)
 
 SECTIONS {
 
@@ -11,23 +12,19 @@ SECTIONS {
     __base__ = .;
     __kernel_start__ = .;
 
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
-    .text : {
+    .text : ALIGN(4K) {
         *(.text*)
     } : text
 
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
-    .rodata : {
+    .rodata : ALIGN(4K) {
         *(.rodata*)
     } : rodata
 
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
-    .data : {
+    .data : ALIGN(4K) {
         *(.data*)
     } : data
 
-    . = ALIGN(CONSTANT(MAXPAGESIZE));
-    .bss : {
+    .bss : ALIGN(4K) {
         *(.bss*)
         *(COMMON)
 

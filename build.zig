@@ -9,43 +9,85 @@ const imageBuilder = @import("deps/image-builder/main.zig");
 const MiB = imageBuilder.size_constants.MiB;
 const GPTr = imageBuilder.size_constants.GPT_reserved_sectors;
 
+// Supported archtectures
+const SArch = enum {
+    x86_64,
+    aarch64
+};
+
 pub fn build(b: *std.Build) void {
     b.exe_dir = "zig-out/";
 
-    const target = Target.Query{
-        .cpu_arch = .aarch64,
+    const target_archtecture_response = b.option(Target.Cpu.Arch, "tarch", "Target archtecture") orelse builtin.cpu.arch;
+    const target_archtecture: SArch = switch (target_archtecture_response) {
+        .x86_64 => .x86_64,
+        .aarch64 => .aarch64,
+        else => std.debug.panic("{s} archtecture is not implemented!", .{@tagName(target_archtecture_response)})
+    };
+
+    var target = Target.Query {
+        .cpu_arch = target_archtecture_response,
         .os_tag = .freestanding,
         .abi = .none,
         .ofmt = .elf,
     };
     const optimize = b.standardOptimizeOption(.{});
 
-    var install_bootloader_step = addDummyStep(b, "Install Bootloader");
-    {
-        //install_bootloader_step.dependOn(&b.addInstallFile(b.path("deps/limine/limine_BOOTX64.EFI"), "disk/EFI/BOOT/BOOTX64.EFI").step);
-        install_bootloader_step.dependOn(&b.addInstallFile(b.path("deps/limine/limine_BOOTAA64.EFI"), "disk/EFI/BOOT/BOOTAA64.EFI").step);
-        install_bootloader_step.dependOn(&b.addInstallFile(b.path("deps/limine/limine_config.txt"), "disk/boot/limine/limine.conf").step);
-        //install_bootloader_step.dependOn(&b.addInstallFile(b.path("deps/limine/limine-bios.sys"), "disk/boot/limine/limine-bios.sys").step);
+    switch (target_archtecture) {
+        .x86_64 => {
+            const Feature = std.Target.x86.Feature;
+
+            // Disable SIMD registers TODO some way to avoid it
+            target.cpu_features_sub.addFeature(@intFromEnum(Feature.mmx));
+            target.cpu_features_sub.addFeature(@intFromEnum(Feature.sse));
+            target.cpu_features_sub.addFeature(@intFromEnum(Feature.sse2));
+            target.cpu_features_sub.addFeature(@intFromEnum(Feature.avx));
+            target.cpu_features_sub.addFeature(@intFromEnum(Feature.avx2));
+
+            target.cpu_features_add.addFeature(@intFromEnum(Feature.soft_float));
+
+        },
+        .aarch64 => {
+            const features = std.Target.aarch64.Feature;
+            target.cpu_features_sub.addFeature(@intFromEnum(features.fp_armv8));
+            target.cpu_features_sub.addFeature(@intFromEnum(features.crypto));
+            target.cpu_features_sub.addFeature(@intFromEnum(features.neon));
+        }
     }
 
-    // kernel
+    var install_bootloader_step = addDummyStep(b, "Install Bootloader");
+    switch (target_archtecture) {
+        .aarch64 => install_bootloader_step.dependOn(&b.addInstallFile(b.path("deps/limine/BOOTAA64.EFI"), "disk/EFI/BOOT/BOOTAA64.EFI").step),
+        .x86_64 => install_bootloader_step.dependOn(&b.addInstallFile(b.path("deps/limine/BOOTX64.EFI"), "disk/EFI/BOOT/BOOTX64.EFI").step),
+    }
+    install_bootloader_step.dependOn(&b.addInstallFile(b.path("deps/limine/config.txt"), "disk/boot/limine/limine.conf").step);
+
+    // kernel module
     const kernel_mod = b.addModule("kernel", .{
         .root_source_file = b.path("src/main.zig"),
         .target = b.resolveTargetQuery(target),
         .optimize = optimize,
-        .code_model = .small,
         .red_zone = false,
     });
+   kernel_mod.code_model = switch (target_archtecture) {
+    .aarch64 => .small,
+    .x86_64 => .kernel
+   };
+    
+    // kernel executable
     const kernel_exe = b.addExecutable(.{
-        .name = "kernelx64",
+        .name = "kernel",
         .root_module = kernel_mod,
     });
+    kernel_exe.entry = .{ .symbol_name = "__boot_entry__" };
+    switch (target_archtecture) {
+        .aarch64 => kernel_exe.setLinkerScript(b.path("link/aarch64.ld")),
+        .x86_64 => kernel_exe.setLinkerScript(b.path("link/x86_64.ld"))
+    }
     
-    kernel_exe.entry = undefined;
-    kernel_exe.setLinkerScript(b.path("link/aarch64.ld"));
-    
+    // kernel install
     const kernel_install = b.addInstallArtifact(kernel_exe, .{
-        .dest_sub_path = "disk/kernelaa64"
+        .dest_sub_path = "disk/kernel"
     });
 
     // generate disk image
@@ -55,39 +97,59 @@ pub fn build(b: *std.Build) void {
     disk.step.dependOn(install_bootloader_step);
     disk.step.dependOn(&kernel_install.step);
 
-    const run_qemu = b.addSystemCommand(&.{
-        "qemu-system-aarch64",
-        
-        "-cpu", "cortex-a57",
-        "-machine", "virt",
-        "-bios", "deps/debug/OVMF.fd", // for UEFI emulation
-        "-m", "2G",
+    // Generate qemu args and run it
+    const Rope = std.ArrayList([]const u8);
+    var qemu_args = Rope.init(b.allocator);
+    defer qemu_args.deinit();
 
-        // serial, video, etc
-        "-serial", "file:zig-out/serial.txt",
-        "-monitor", "mon:stdio",
-        "-display", "gtk,zoom-to-fit=on",
+    switch (target_archtecture) {
+        .aarch64 => {
+            qemu_args.append("qemu-system-aarch64") catch @panic("OOM");
 
-        // Aditional devices
-        "-device", "ramfb",
-        "-device", "virtio-blk-device,drive=hd0,id=blk1",
+            qemu_args.appendSlice(&.{"-cpu", "cortex-a57"}) catch @panic("OOM");
+            qemu_args.appendSlice(&.{"-machine", "virt"}) catch @panic("OOM");
 
-        //"-usb",
-        "-device", "qemu-xhci,id=usb",
-        "-device", "usb-mouse",
-        "-device", "usb-kbd",
+            qemu_args.appendSlice(&.{"-device", "ramfb"}) catch @panic("OOM");
+            qemu_args.appendSlice(&.{"-device", "virtio-blk-device,drive=hd0,id=blk1"}) catch @panic("OOM");
+            qemu_args.appendSlice(&.{"-drive", "id=hd0,file=zig-out/SystemElva.img,format=raw,if=none"}) catch @panic("OOM");
 
-        // Debug
-        "-D", "zig-out/log.txt",
-        "-d", "int,cpu_reset",
-        //"--no-reboot",
-        //"--no-shutdown",
-        //"-trace", "*xhci*",
-        //"-s", "-S",
+            // for UEFI emulation
+            qemu_args.appendSlice(&.{"-bios", "deps/debug/aarch64_OVMF.fd"}) catch @panic("OOM");
 
-        // Disk
-        "-drive", "id=hd0,file=zig-out/SystemElva.img,format=raw,if=none",
-    });
+            // as aarch64 don't have PS/2
+            qemu_args.appendSlice(&.{"-device", "qemu-xhci,id=usb"}) catch @panic("OOM");
+            qemu_args.appendSlice(&.{"-device", "usb-mouse"}) catch @panic("OOM");
+            qemu_args.appendSlice(&.{"-device", "usb-kbd"}) catch @panic("OOM");
+        },
+        .x86_64 => {
+            qemu_args.append("qemu-system-x86_64") catch @panic("OOM");
+
+            qemu_args.appendSlice(&.{"-machine", "q35"}) catch @panic("OOM");
+
+            qemu_args.appendSlice(&.{"-device", "ahci,id=ahci"}) catch @panic("OOM");
+            qemu_args.appendSlice(&.{"-device", "ide-hd,drive=drive0,bus=ahci.0"}) catch @panic("OOM");
+            qemu_args.appendSlice(&.{"-drive", "id=drive0,file=zig-out/SystemElva.img,format=raw,if=none"}) catch @panic("OOM");
+
+            // for UEFI emulation
+            qemu_args.appendSlice(&.{"-bios", "deps/debug/x86_64_OVMF.fd"}) catch @panic("OOM");
+        }
+    }
+
+    // general options
+    qemu_args.appendSlice(&.{"-m", "2G"}) catch @panic("OOM");
+
+    qemu_args.appendSlice(&.{"-serial", "file:zig-out/com1.txt"}) catch @panic("OOM");
+    qemu_args.appendSlice(&.{"-monitor", "mon:stdio"}) catch @panic("OOM");
+    qemu_args.appendSlice(&.{"-display", "gtk,zoom-to-fit=on"}) catch @panic("OOM");
+
+    qemu_args.appendSlice(&.{"-D", "zig-out/log.txt"}) catch @panic("OOM");
+    qemu_args.appendSlice(&.{"-d", "int,cpu_reset"}) catch @panic("OOM");
+    //qemu_args.appendSlice(&.{"--no-reboot"}) catch @panic("OOM");
+    //qemu_args.appendSlice(&.{"--no-shutdown"}) catch @panic("OOM");
+    //qemu_args.appendSlice(&.{"-trace", "*xhci*"}) catch @panic("OOM");
+    //qemu_args.appendSlice(&.{"-s", "-S"}) catch @panic("OOM");
+
+    const run_qemu = b.addSystemCommand(qemu_args.items);
 
     // default (only build)
     b.getInstallStep().dependOn(&disk.step);
