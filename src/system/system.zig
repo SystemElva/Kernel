@@ -5,10 +5,19 @@ const builtin = @import("builtin");
 pub const arch = builtin.cpu.arch;
 pub const endian = arch.endian();
 
+// IO
 pub const serial = switch (arch) {
     .aarch64 => @import("aarchx64/serial.zig"),
     .x86_64 =>  @import("x86_64/serial.zig"),
     .x86 =>     @import("x86/serial.zig"),
+    else => unreachable
+};
+
+// Assembly
+pub const flags = switch (arch) {
+    //.aarch64 => @import("aarchx64/flags.zig"),
+    .x86_64 =>  @import("x86_64/flags.zig"),
+    //.x86 =>     @import("x86/flags.zig"),
     else => unreachable
 };
 
