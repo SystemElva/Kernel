@@ -14,10 +14,10 @@ pub const serial = switch (arch) {
 };
 
 // Assembly
-pub const flags = switch (arch) {
-    //.aarch64 => @import("aarchx64/flags.zig"),
-    .x86_64 =>  @import("x86_64/flags.zig"),
-    //.x86 =>     @import("x86/flags.zig"),
+pub const assembly = switch (arch) {
+    //.aarch64 => @import("aarchx64/asm.zig"),
+    .x86_64 =>  @import("x86_64/asm/asm.zig"),
+    //.x86 =>     @import("x86/asm.zig"),
     else => unreachable
 };
 

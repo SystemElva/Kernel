@@ -12,7 +12,7 @@ comptime { _ = @import("boot/limine/entry.zig"); }
 
 pub fn main(_boot_info: BootInfo) noreturn {
     boot_info = _boot_info;
-    system.flags.clear_interrupt();
+    system.assembly.flags.clear_interrupt();
 
     // Setupping system-dependant resources
     system.init() catch @panic("System could not be initialized!");

@@ -1,5 +1,6 @@
 pub const BootInfo = struct {
     framebuffer: Framebuffer,
+    memory_map: []*MemoryMapEntry,
 };
 
 pub const Framebuffer = struct {
@@ -7,4 +8,21 @@ pub const Framebuffer = struct {
     width: u64,
     height: u64,
     pps: u64,
+};
+
+pub const MemoryMapEntry = extern struct {
+    base: u64,
+    size: u64,
+    type: RegionType,
+};
+
+pub const RegionType = enum(u64) {
+    usable = 0,
+    reserved = 1,
+    acpi_reclaimable = 2,
+    acpi_nvs = 3,
+    bad_memory = 4,
+    bootloader_reclaimable = 5,
+    kernel_and_modules = 6,
+    framebuffer = 7,
 };
