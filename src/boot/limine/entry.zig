@@ -7,6 +7,7 @@ const limine = @import("limine.zig");
 pub export var base_revision: limine.BaseRevision = .{ .revision = 3 };
 pub export var framebuffer_request: limine.FramebufferRequest = .{};
 pub export var memory_map_request: limine.MemoryMapRequest = .{};
+pub export var kernel_addr_request: limine.KernelAddressRequest = .{};
 
 pub export fn __boot_entry__() callconv(.C) noreturn {
     
@@ -15,13 +16,20 @@ pub export fn __boot_entry__() callconv(.C) noreturn {
     if (framebuffer_request.response == null) done();
     if (framebuffer_request.response.?.framebuffer_count < 1) done();
     if (memory_map_request.response == null) done();
+    if (kernel_addr_request.response == null) done();
 
     const fbuffer = framebuffer_request.response.?.framebuffers_ptr[0];
     const fbuffer_size = fbuffer.pitch * fbuffer.height;
 
     const mmap = memory_map_request.response.?;
 
+    const addr = kernel_addr_request.response.?;
+
     const boot_info: boot.BootInfo = .{
+
+        .kernel_base_physical = addr.physical_base,
+        .kernel_base_virtual = addr.virtual_base,
+
         .framebuffer = .{
             .framebuffer = fbuffer.address[0 .. fbuffer_size],
             .width = fbuffer.width,

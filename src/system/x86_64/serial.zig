@@ -43,7 +43,7 @@ pub fn init() !void {
     //   - the sixth to eigth bytes are unused
     ports.outb(port_com1 + 4, 0x0b);
 
-    _ = try serial_out(@ptrFromInt(0x1000), "\n");
+    uart_putchar('\n');
 }
 
 pub inline fn writer() SerialWriter {

@@ -17,9 +17,6 @@ pub fn main(_boot_info: BootInfo) noreturn {
     // Setupping system-dependant resources
     system.init() catch @panic("System could not be initialized!");
 
-    // Setupping IO and debug
-    system.serial.init() catch @panic("Serial could not be initialized!");
-
     // Printing hello world
     _ = system.serial.writer().print("\nHello, World from {s}!\n", .{ @tagName(system.arch) }) catch unreachable;
  
