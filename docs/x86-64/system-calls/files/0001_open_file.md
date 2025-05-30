@@ -13,8 +13,8 @@ struct SvkArgumentOpenFile
     uint32_t action;
     uint32_t flags;
     char *path;
-    struct SvkFileDescriptor *descriptor_buffer;
-    struct SvkFileOpenMode open_mode:8;
+    SvkFileDescriptor *descriptor_buffer;
+    SvkFileOpenMode open_mode:8;
 
     uint8_t padding[31];
     void *chain_next;
@@ -52,7 +52,11 @@ struct SvkArgumentOpenFile
 
 2. `path`  
     Absolute path  of the file  to open. If  a relative path  is given
-    using this field, the system call will fail.
+    using this field, the system call will fail. This must be given as
+    ASCII or UTF-8  characters. The  full path may not be longer  than
+    16384 or the limit of the underlying filesystem, whichever of them
+    is lower. No path item may exceed the underlying filesystem's set
+    limit (many filesystems allow 255 characters per element).
 
 3. `descriptor_buffer`  
     Pointer to a *regular memory region*\* managed by the program that
@@ -85,4 +89,63 @@ struct SvkArgumentOpenFile
 
 ## Errors
 
-> @todo: This section is still work-in-progress.
+### General Errors
+
+- **InvalidFlags** (`0xff01`)  
+    Given if a  combination of  flags given is not allowed or a bit is
+    set that doesn't correspond do a valid flag in the given context.
+
+- **InvalidNextPointer** (`0xff02`)  
+    Given if the next pointer is neither `null` nor a valid pointer to
+    memory region containing a command argument structure.
+
+- **MissingPermissiosn** (`0xff03`)  
+    The requested action is not allowed for the calling process.
+
+### Errors present in all *Files* system calls
+
+- **FileNotFound** (`0xfe01`)  
+    Given if the folder containing the file is accessible but the file
+    wanted doesn't exist inside it.
+
+- **PathNotAbsolute** (`0xfe02`)  
+    Given if a path given as any path field isn't absolute. Paths must
+    be absolute and direct (without `../`).
+
+- **InvalidDescriptor** (`0xfe03`)  
+    Given if the  descriptor doesn't  exist, if it has  been closed or
+    isn't accessible to the caller process.
+
+### Specific to this Action
+
+- **EmptyPath** (`0x0101`)  
+    Given if  the path doesn't  contain  any characters; if  the first
+    character found is an *ASCII NUL* - byte.
+
+- **DisallowedPathCharacters** (`0x0102`)  
+    Given if the path  contains  characters that aren't  allowed, like
+    some signs that a particular  filesystem doesn't allow  or control
+    characters.  This may also occur if an  invalid or undefined UTF-8
+    code point is used.
+
+- **PathTooLong** (`0x0103`)  
+    Given if the encoded path is  too long. This only occurs if all of
+    the characters until the limit is hit are allowed path characters.
+    The limit more likely to be exceeded is defined by the filesystem;
+    SystemElva's limit is set as 16384 (2^14) bytes.
+
+- **InvalidPathPointer** (`0x1404`)  
+    Given if the pointer pointer to the path doesn't point to a memory
+    region mapped accessible for the system call - issuing program.
+
+- **InvalidOpenMode** (`0x0105`)  
+    Given if `open_mode` has an invalid value that can't be understood
+    correctly because of bits set wrong.
+
+- **IsFolder** (`0x0106`)  
+    Given if the folder  item pointed to by the path  is a folder or a
+    link that points to a folder.
+
+- **OpenModeNotAllowed** (`0x0107`)  
+    Given if the calling process  doesn't have the permissions to open
+    the given file with the wanted open mode.

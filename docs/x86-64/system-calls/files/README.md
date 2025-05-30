@@ -2,9 +2,9 @@
 
 System calls in this group interact with, gather information about and
 modify files, folders and  other items that may occur in a filesystem.
-File system calls  have the upper two bytes  of the system  call number
-set to `0x0001`.  The number  shown in the  data table  below tell  the
-content of the lower  two bytes of. Further information can be found in
+File system calls have the upper two bytes  of the system  call number
+set to `0x0001`. The number  shown in the  data table  below tell  the
+content of the lower two bytes of. Further information can be found in
 the linked documents.
 
 |  Number    |  Identifier                                           |
