@@ -3,7 +3,9 @@ pub const BootInfo = struct {
     memory_map: []*MemoryMapEntry,
 
     kernel_base_virtual: usize,
-    kernel_base_physical: usize
+    kernel_base_physical: usize,
+
+    hhdm_base_offset: usize,
 };
 
 pub const Framebuffer = struct {

@@ -13,6 +13,9 @@ pub const serial = switch (arch) {
     else => unreachable
 };
 
+// Memory Management
+pub const paging = @import("paging.zig");
+
 // Assembly
 pub const assembly = switch (arch) {
     //.aarch64 => @import("aarchx64/asm.zig"),

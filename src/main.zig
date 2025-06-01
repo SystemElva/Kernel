@@ -31,7 +31,11 @@ pub inline fn get_boot_info() BootInfo {
 pub fn panic(msg: []const u8, stack_trace: ?*std.builtin.StackTrace, return_address: ?usize) noreturn {
     _ = return_address;
     _ = stack_trace;
-    _ = msg;
+
+    const writer = system.serial.writer();
+
+    writer.print("!!! KERNEL PANIC !!!", .{}) catch unreachable;
+    writer.print("Error: {s}\n", .{msg}) catch unreachable;
 
     while (true) {}
 }

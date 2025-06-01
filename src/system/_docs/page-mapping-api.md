@@ -8,6 +8,13 @@ All the API access is inside the `root.system.paging` namespace
 
 ## Common Data Structures
 ```rust
+pub const MemoryMap = struct {
+  phys_addr: usize,
+  virt_addr: MapPtr // system dependent
+}
+```
+
+```rust
 pub const Attributes = packed struct(u16) {
   // access permitions
   read: bool = true,
@@ -26,7 +33,7 @@ pub const Attributes = packed struct(u16) {
   growns_down: bool = false,
   
   _unused_: u7 = 0
-}
+};
 ```
 
 | Offset | Field | length | Description |
@@ -50,6 +57,22 @@ pub const MMapError = error {
 ```
 
 ## Functions
+
+```rust
+pub fn get_current_map() MemoryMap
+```
+Returns the memory map being currently used.
+
+```rust
+pub fn set_current_map(map: MemoryMap) void
+```
+Set the memory map currently being used.
+
+```rust
+pub fn create_new_map() MemoryMap
+```
+Create and set a completelly new memory map.
+
 
 ```rust
 pub fn map_single_page(phys_base: usize, virt_base: usize, size: usize, attributes: Attributes) MMapError!void
