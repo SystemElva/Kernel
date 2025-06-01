@@ -89,73 +89,21 @@ struct SvkArgumentOpenFile
 
 ## Errors
 
-### General Errors
+The list below contains  the names of all errors this system call  can
+produce. For  a more thorough description than  a simple name, consult
+[Appendix C](../Appendices.md#appendix-c).
 
-The following errors are present in all categories:
-
-- **InvalidFlags** (`0xff0001`)  
-    Given if a  combination of  flags given is not allowed or a bit is
-    set that doesn't correspond do a valid flag in the given context.
-
-- **InvalidNextPointer** (`0xff0002`)  
-    Given if the next pointer is neither `null` nor a valid pointer to
-    memory region containing a command argument structure.
-
-- **TooManyCommands** (`0xff0003`)  
-    Given if the 255th node has a next-pointer that isn't `null`; i.e.
-    if there are 256 or more commands in the chain.
-
-### *Files* - specific errors
-
-The following errors are present in this actions and all other actions
-of the *Files* - category:
-
-- **FileNotFound** (`0x018001`)  
-    Given if the folder containing the file is accessible but the file
-    wanted inside it couldn't be found.
-
-- **InvalidDescriptorPointer** (`0x0018002`)  
-    Given if the descriptor pointer  points to a memory region that is
-    not mapped readalbe for the calling process.
- 
-### Action - specific Errors
-
-The following errors are specific to only this action:
-
-- **EmptyPath** (`0x001001`)  
-    Given if  the path doesn't  contain  any characters; if  the first
-    character found is `0x00`, the string terminator byte.
-
-- **DisallowedPathCharacters** (`0x001002`)  
-    Given if the path  contains  characters that aren't  allowed, like
-    some signs that a particular  filesystem doesn't allow  or control
-    characters.  This may also occur if an  invalid or undefined UTF-8
-    code point is used.
-
-- **PathTooLong** (`0x001003`)  
-    Given if the encoded path is  too long. This only occurs if all of
-    the characters until the limit is hit are allowed path characters.
-    The limit more likely to be exceeded  is defined by the filesystem
-    as SystemElva's limit is set conservatively as 16384 (2^14) bytes.
-
-- **InvalidPathPointer** (`0x001004`)  
-    Given if the pointer pointer to the path doesn't point to a memory
-    region mapped accessible for the program issuing the system call.
-
-- **PathNotAbsolute** (`0x001005`)  
-    Given if the path to the file to open doesn't start with a forward
-    slash, i.e. if it is not an absolute path.
-
-- **InvalidOpenMode** (`0x001006`)  
-    Given if `open_mode` has an invalid value that can't be understood
-    correctly because of bits set wrong.
-
-- **IsFolder** (`0x001007`)  
-    Given if the folder  item pointed to by the path  is a folder or a
-    link that points to a folder.
-
-- **OpenModeNotAllowed** (`0x001008`)  
-    Given if the calling process doesn't have the permissions to open
-    the given file with the wanted open mode.
-
+- InvalidFlags
+- InvalidNextPointer
+- TooManyCommands
+- FileNotFound
+- InvalidDescriptorPointer
+- EmptyPath
+- DisallowedPathCharacters
+- PathTooLong
+- InvalidPathPointer
+- PathNotAbsolute
+- InvalidOpenMode
+- IsFolder
+- OpenModeNotAllowed
 
