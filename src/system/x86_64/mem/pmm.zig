@@ -183,9 +183,9 @@ fn lsmemblocks() void {
 
 /// Allocates and returns a single page.
 pub fn get_single_page(status: BlockStatus) *anyopaque {
+    var block: *Block = undefined;
 
-    var ptr_page: usize = undefined;
-
+    // search for a free block
     var free_block = b: {
         var a: ?*Block = memory_blocks_root;
         while (a != null and a.?.status != .free) : (a = a.?.next) {}
@@ -193,9 +193,10 @@ pub fn get_single_page(status: BlockStatus) *anyopaque {
         break :b a.?;
     };
 
+    // cut the block if needed
     if (free_block.length == 1) {
         free_block.status = status;
-        ptr_page = free_block.start;
+        block = free_block;
     } else {
 
         var new_block = b: {
@@ -218,10 +219,33 @@ pub fn get_single_page(status: BlockStatus) *anyopaque {
         new_block.next = free_block;
         free_block.previous = new_block;
 
-        ptr_page = new_block.start;
+        block = new_block;
     }
 
-    debug.print("allocated page {} ({X})\n", .{ptr_page, ptr_page * 4096}) catch unreachable;
+    const ptr_page = block.start;
+
+    // try merge blocks
+    if (block.previous) |prev| {
+        if (prev.status == block.status) {
+            prev.length += block.length;
+            prev.next = block.next;
+            if (block.next) |n| n.previous = prev;
+
+            block.status = .unused;
+            block = prev;
+        }
+    }
+    if (block.next) |next| {
+        if (next.status == block.status) {
+            block.length += next.length;
+            block.next = next.next;
+            if (next.next) |n| n.previous = block;
+
+            next.status = .unused;
+        }
+    }
+
+    debug.print("allocated page {} (0x{X})\n", .{ptr_page, ptr_page * 4096}) catch unreachable;
     return @ptrFromInt(ptr_page * 4096 + hhdm_offset);
 }
 
@@ -249,6 +273,7 @@ const BlockStatus = enum(usize) {
     reserved,
 
     kernel,
+    kernel_heap,
     mem_page,
 
     program_code,
