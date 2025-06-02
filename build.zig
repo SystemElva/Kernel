@@ -69,10 +69,10 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .red_zone = false,
     });
-   kernel_mod.code_model = switch (target_archtecture) {
-    .aarch64 => .small,
-    .x86_64 => .kernel
-   };
+    kernel_mod.code_model = switch (target_archtecture) {
+        .aarch64 => .small,
+        .x86_64 => .kernel
+    };
     
     // kernel executable
     const kernel_exe = b.addExecutable(.{
@@ -144,10 +144,12 @@ pub fn build(b: *std.Build) void {
 
     qemu_args.appendSlice(&.{"-D", "zig-out/log.txt"}) catch @panic("OOM");
     qemu_args.appendSlice(&.{"-d", "int,cpu_reset"}) catch @panic("OOM");
-    //qemu_args.appendSlice(&.{"--no-reboot"}) catch @panic("OOM");
-    //qemu_args.appendSlice(&.{"--no-shutdown"}) catch @panic("OOM");
+    qemu_args.appendSlice(&.{"--no-reboot"}) catch @panic("OOM");
+    qemu_args.appendSlice(&.{"--no-shutdown"}) catch @panic("OOM");
     //qemu_args.appendSlice(&.{"-trace", "*xhci*"}) catch @panic("OOM");
     //qemu_args.appendSlice(&.{"-s", "-S"}) catch @panic("OOM");
+
+    qemu_args.appendSlice(&.{"-qmp", "unix:qmp.socket,server,nowait"}) catch @panic("OOM");
 
     const run_qemu = b.addSystemCommand(qemu_args.items);
 

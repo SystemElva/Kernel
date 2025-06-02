@@ -16,19 +16,30 @@ SECTIONS {
 
     .rodata : ALIGN(4K) {
         *(.rodata*)
+        *(.lrodata*)
     } : rodata
 
     .data : ALIGN(4K) {
         *(.data*)
+        *(.ldata*)
     } : data
+
+    .data : ALIGN(4K) {
+        *(.data*)
+    } : tdata
 
     .bss : ALIGN(4K) {
         *(.bss*)
+        *(.lbss*)
         *(COMMON)
 
         . = ALIGN(16);
         . += KERNEL_STACK_SIZE;
     } : bss
+
+    .tbss : ALIGN(4K) {
+        *(.tbss*)
+    } : tbss
 
     __kernel_end__ = .;
 }

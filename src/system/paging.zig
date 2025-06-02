@@ -33,3 +33,18 @@ pub const MMapError = error {
   AddressNotMapped,
   Missaligned
 };
+
+pub const MemStatus = enum(usize) {
+    unused = 0, // not being used, can be overrided
+    free,
+    reserved,
+
+    kernel,
+    kernel_heap,
+    mem_page,
+    framebuffer,
+
+    program_code,
+    program_data,
+    program_misc,
+};

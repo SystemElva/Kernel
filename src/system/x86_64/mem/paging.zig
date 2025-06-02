@@ -46,8 +46,9 @@ pub fn set_current_map(map: MapPtr) void {
 }
 pub fn commit_map() void {
     var cr3_val: Cr3Value = ctrl_regs.read(.cr3);
-    cr3_val.set_phys_addr(pmm.ptr2phys(current_map.?));
-    debug.print("Commiting page table at 0x{X}", .{cr3_val.get_phys_addr()}) catch unreachable;
+    cr3_val.set_phys_addr(pmm.physFromPtr(current_map.?));
+    ctrl_regs.write(.cr3, cr3_val);
+    debug.print("Comitted page table at 0x{X} ({X})", .{cr3_val.get_phys_addr(), @as(usize, @truncate(pmm.physFromPtr(current_map.?) >> 12))}) catch unreachable;
 }
 
 
@@ -81,7 +82,7 @@ pub fn map_single_page(phys_base: usize, virt_base: usize, comptime size: usize,
     const page_dir: Table(PDPTE) = b: {
         const entry: *PML45 = &pml4[split.dirptr];
 
-        if (entry.present) break :b pmm.phys2ptr(Table(PDPTE),entry.get_phys_addr());
+        if (entry.present) break :b pmm.PtrFromPhys(Table(PDPTE),entry.get_phys_addr());
 
         // no entry currently present, allocating a new one
         entry.* = @bitCast(@as(usize, 0));
@@ -102,13 +103,84 @@ pub fn map_single_page(phys_base: usize, virt_base: usize, comptime size: usize,
         entry.access = if (attributes.write) .read_write else .read_only;
         entry.no_code = !attributes.execute;
         entry.privilege = if (attributes.privileged or split.pml4 >= 0) .kernel else .user;
+        entry.is_gb_page = true;
         entry.set_phys_addr(phys_base);
         entry.present = true;
 
+        return;
+
+    } else if (size == 30) {
+
+        for (0..512) |table| {
+
+            const new_v_addr = virt_base + (table << 21);
+            const new_p_addr = phys_base + (table << 21);
+            try map_single_page(new_p_addr, new_v_addr, 20, attributes);
+
+        }
+        return;
+
+    }
+
+    const directory: Table(PDE) = b: {
+
+        var entry: *PDPTE = &page_dir[split.directory];
+        if (entry.present) break :b pmm.PtrFromPhys(Table(PDE), entry.get_phys_addr());
+
+        entry.* = @bitCast(@as(usize, 0));
+        entry.access = .read_write;
+        entry.no_code = false;
+        entry.privilege = if (split.pml4 < 0) .user else .kernel;
+        entry.is_gb_page = false;
+        entry.present = true;
+
+         break :b try create_page_table(PDE, entry);
+    };
+
+    if (size == 20) {
+
+        var entry: *PDE = &directory[split.table];
+        if (entry.present) return MMapError.AddressAlreadyMapped;
+
+        entry.* = @bitCast(@as(usize, 0));
+        entry.access = if (attributes.write) .read_write else .read_only;
+        entry.no_code = !attributes.execute;
+        entry.privilege = if (attributes.privileged or split.pml4 >= 0) .kernel else .user;
+        entry.is_mb_page = true;
+        entry.set_phys_addr(phys_base);
+        entry.present = true;
+
+        return;
+    }
+
+    const table: Table(PTE) = b4: {
+        var entry: *PDE = &directory[split.table];
+        if (entry.present) {
+            break :b4 pmm.PtrFromPhys(Table(PTE), entry.get_phys_addr());
+        }
+        entry.* = @bitCast(@as(usize, 0));
+        entry.access = .read_write;
+        entry.no_code = false;
+        entry.privilege = if (split.pml4 < 0) .user else .kernel;
+        entry.is_mb_page = false;
+        entry.present = true;
+
+        break :b4 try create_page_table(PTE, entry);
+    };
+
+    {
+        var entry: *PTE = &table[split.page];
+        if (entry.present) return MMapError.AddressAlreadyMapped;
+
+        entry.* = @bitCast(@as(usize, 0));
+        entry.access = if (attributes.write) .read_write else .read_only;
+        entry.no_code = !attributes.execute;
+        entry.privilege = if (attributes.privileged or split.pml4 >= 0) .kernel else .user;
+        entry.set_phys_addr(phys_base);
+        entry.present = true;
     }
 
 }
-
 pub fn map_range(phys_base: usize, virt_base: usize, length: usize, attributes: Attributes) MMapError!void {
 
     debug.print("mapping range ${X} .. ${X} -> ${X} ({s}{s}{s}{s}{s}{s})\n",
@@ -167,20 +239,22 @@ pub fn map_range(phys_base: usize, virt_base: usize, length: usize, attributes: 
     }
 }
 
+
 pub fn unmap_single_page(virt_base: usize) MMapError!void {
     _ = virt_base;
 }
-
 pub fn unmap_range(virt_base: usize, length: usize) MMapError!void {
     _ = virt_base;
     _ = length;
 }
 
+
 fn create_page_table(comptime T: type, entry: anytype) !Table(T) {
 
     const Ret = Table(T);
     const tbl = pmm.get_single_page(.mem_page);
-    entry.set_phys_addr(pmm.ptr2phys(tbl));
+
+    entry.set_phys_addr(pmm.physFromPtr(tbl));
     const ptr: Ret = @ptrCast(@alignCast(tbl));
     @memset(std.mem.asBytes(ptr), 0);
     return ptr;

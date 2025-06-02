@@ -1,6 +1,6 @@
 const root = @import("root");
 const std = @import("std");
-const debug = root.system.serial.writer();
+const debug = root.debug;
 
 const paging = @import("paging.zig");
 
@@ -20,7 +20,7 @@ var total_memory_bytes: usize = undefined;
 var kernel_page_start: usize = undefined;
 var kernel_page_end: usize = undefined;
 
-const page_size = 4096;
+pub const page_size = 4096;
 
 pub fn setup() void {
     
@@ -43,7 +43,7 @@ pub fn setup() void {
     hhdm_offset = boot_info.hhdm_base_offset;
     const mmap = boot_info.memory_map;
 
-    debug.print("pb: {X: >16}; vb: {X: >16}\n\n", .{ boot_info.kernel_base_physical, boot_info.kernel_base_virtual }) catch unreachable;
+    debug.print("phys base: {X: >16}\nvirt base: {X: >16}\n\n", .{ boot_info.kernel_base_physical, boot_info.kernel_base_virtual });
 
     for (mmap) |i| {
 
@@ -57,7 +57,7 @@ pub fn setup() void {
             // cases but i prefer to ignore it
             if (i.base < 0x100000) continue;
 
-            debug.print("marking {X} .. {X} as free\n", .{ i.base, i.base + i.size}) catch unreachable;
+            debug.print("marking {X} .. {X} as free\n", .{ i.base, i.base + i.size});
 
             // Marking block as free
             blocks[next_free_block] = .{
@@ -70,11 +70,26 @@ pub fn setup() void {
                 .next = null
             };
             
+        } else if (i.type == .framebuffer) {
+            // I personally prefer have track of the framebuffer
+            debug.print("marking {X} .. {X} as framebuffer\n", .{ i.base, i.base + i.size});
+
+            // Marking block as free
+            blocks[next_free_block] = .{
+                .start = i.base / page_size,
+                .length = i.size / page_size,
+
+                .status = .framebuffer,
+
+                .previous = null,
+                .next = null
+            };
+
         } else if (i.type == .kernel_and_modules) {
             // Entry is not usable, but will be marked
             // as kernel
 
-            debug.print("marking {X} .. {X} as kernel\n", .{ i.base, i.base + i.size}) catch unreachable;
+            debug.print("marking {X} .. {X} as kernel\n", .{ i.base, i.base + i.size});
             blocks[next_free_block] = .{
                 .start = i.base / page_size,
                 .length = i.size / page_size,
@@ -88,7 +103,7 @@ pub fn setup() void {
             kernel_page_start = i.base / page_size;
             kernel_page_end = kernel_page_start + i.size / page_size;
         } else {
-            debug.print("skipping {X} .. {X} ({s})\n", .{ i.base, i.base + i.size, @tagName(i.type)}) catch unreachable;
+            debug.print("skipping {X} .. {X} ({s})\n", .{ i.base, i.base + i.size, @tagName(i.type)});
             continue;
         }
 
@@ -111,8 +126,8 @@ pub fn setup() void {
     const size_float: f64 = @floatFromInt(total_memory_bytes);
     const unit_float: f64 = @floatFromInt(units[i].size);
 
-    debug.print("Total memory available: {d:.2} {s} ({} pages)\n", .{size_float / unit_float, units[i].name, total_memory_bytes / page_size}) catch unreachable;
-    debug.print("HHDM offset: {X}\n", .{hhdm_offset}) catch unreachable;
+    debug.print("Total memory available: {d:.2} {s} ({} pages)\n", .{size_float / unit_float, units[i].name, total_memory_bytes / page_size});
+    debug.print("HHDM offset: {X}\n", .{hhdm_offset});
 
     paging.enumerate_paging_features();
 
@@ -142,27 +157,48 @@ pub fn setup() void {
 
     // Creating identity map
     const idmap_len = std.math.shl(usize, 1, phys_mapping_range_bits - 12);
-    debug.print("\nmapping range of {d} bits ({} pages, {s})\n", .{phys_mapping_range_bits, idmap_len, std.fmt.fmtIntSizeBin(idmap_len * 4096)}) catch unreachable;
+    debug.print("\nmapping range of {d} bits ({} pages, {s})\n", .{phys_mapping_range_bits, idmap_len, std.fmt.fmtIntSizeBin(idmap_len * 4096)});
     paging.map_range(0, hhdm_offset, idmap_len, atributes_ROX_privileged_fixed) catch unreachable;
 
+    paging.map_range(0, 0, idmap_len, atributes_ROX_privileged_fixed) catch unreachable;
+
     // Mapping kernel
-    debug.print("\nmapping kernel range {X} .. {X} tp {X}\n", .{kernel_phys, kernel_phys + kernel_len, kernel_virt}) catch unreachable;
+    debug.print("\nmapping kernel range {X} .. {X} tp {X}\n", .{kernel_phys, kernel_phys + kernel_len, kernel_virt});
     paging.map_range(kernel_phys, kernel_virt, kernel_len, atributes_ROX_privileged_fixed) catch unreachable;
     
-    debug.print("Commiting new map to CR3...\n", .{}) catch unreachable;
+    debug.print("Commiting new map to CR3...\n", .{});
     paging.commit_map();
-    debug.print("\nOk theorically we are in our owm mem map now...\n", .{}) catch unreachable;
-    debug.print("Nothing exploded yay :3...\n", .{}) catch unreachable;
+    
+    debug.print("\nOk theorically we are in our owm mem map now...\n", .{});
+    debug.print("Nothing exploded yay :3...\n", .{});
+
+    // allocating pmm final heap
+    const pmm_heap = get_multiple_pages(10, .kernel_heap);
+    memory_blocks_buffer = @as([*]Block, @ptrCast(@alignCast(pmm_heap.?)))[0 .. 10 * page_size / @sizeOf(Block)];
+
+    var cur_block: ?*Block = memory_blocks_root;
+    var idx: usize = 0;
+
+    while (cur_block != null) : ({ idx += 1; cur_block = cur_block.?.next; }) {
+        @memcpy(std.mem.asBytes(&memory_blocks_buffer[idx]), std.mem.asBytes(cur_block.?));
+        if (idx > 0) memory_blocks_buffer[idx].previous = &memory_blocks_buffer[idx - 1];
+    }
+
+    memory_blocks_buffer[0].previous = null;
+    memory_blocks_buffer[idx - 1].next = null;
+    memory_blocks_root = &memory_blocks_buffer[0];
 
     lsmemblocks();
 }
 
 fn lsmemblocks() void {
-    debug.print("\nMemory blocks:\n", .{}) catch unreachable;
+    debug.print("\nMemory blocks:\n", .{});
+
+    var free_pages: usize = 0;
+    var used_pages: usize = 0;
 
     var cur: ?*Block = memory_blocks_root;
     while (cur != null) : (cur = cur.?.next) {
-
         debug.print("- beg: {: >10}; end: {: >10}; len: {: >10}; prev: {: >9} .. {: >9}; next: {: >9} .. {: >9}; status: {s}\n", .{
             cur.?.start,
             cur.?.start + cur.?.length,
@@ -175,13 +211,15 @@ fn lsmemblocks() void {
             if(cur.?.next == null) 0 else cur.?.next.?.start + cur.?.next.?.length,
 
             @tagName(cur.?.status)
-        }) catch unreachable;
-
+        });
+        if (cur.?.status == .free) free_pages += cur.?.length else used_pages += cur.?.length;
     }
-    debug.print("\n", .{}) catch unreachable;
+
+    debug.print("{} free pages\n", .{free_pages});
+    debug.print("{} used pages\n\n", .{used_pages});
 }
 
-/// Allocates and returns a single page.
+/// Allocates and returns a single page
 pub fn get_single_page(status: BlockStatus) *anyopaque {
     var block: *Block = undefined;
 
@@ -226,6 +264,76 @@ pub fn get_single_page(status: BlockStatus) *anyopaque {
 
     // try merge blocks
     if (block.previous) |prev| {
+        if (prev.status == block.status and prev.start + prev.length == block.start) {
+
+            prev.length += block.length;
+            prev.next = block.next;
+            if (block.next) |n| n.previous = prev;
+
+            block.status = .unused;
+            block = prev;
+
+        }
+    }
+    if (block.next) |next| {
+        if (next.status == block.status and next.start == block.start + block.length) {
+
+            block.length += next.length;
+            block.next = next.next;
+            if (next.next) |n| n.previous = block;
+
+            next.status = .unused;
+
+        }
+    }
+
+    debug.print("allocated page {} (0x{X})\n", .{ptr_page, ptr_page * 4096});
+    return @ptrFromInt(ptr_page * 4096 + hhdm_offset);
+}
+pub fn get_multiple_pages(len: usize, status: BlockStatus) ?*anyopaque {
+    var block: *Block = undefined;
+
+    // search for a free block
+    var free_block = b: {
+        var a: ?*Block = memory_blocks_root;
+        while (a != null and a.?.status != .free and a.?.length < len) : (a = a.?.next) {}
+        if (a == null) @panic("OOM");
+        break :b a.?;
+    };
+
+    // cut the block if needed
+    if (free_block.length == len) {
+        free_block.status = status;
+        block = free_block;
+    } else {
+
+        var new_block = b: {
+            for (memory_blocks_buffer) |*mb| {
+                if (mb.status == .unused) break :b mb;
+            }
+            @panic("TODO increase buffer length");
+        };
+
+        new_block.status = status;
+        new_block.start = free_block.start;
+        new_block.length = len;
+
+        free_block.start += len;
+        free_block.length -= len;
+
+        new_block.previous = free_block.previous;
+        free_block.previous.?.next = new_block;
+
+        new_block.next = free_block;
+        free_block.previous = new_block;
+
+        block = new_block;
+    }
+
+    const ptr_page = block.start;
+
+    // try merge blocks
+    if (block.previous) |prev| {
         if (prev.status == block.status) {
             prev.length += block.length;
             prev.next = block.next;
@@ -245,14 +353,14 @@ pub fn get_single_page(status: BlockStatus) *anyopaque {
         }
     }
 
-    debug.print("allocated page {} (0x{X})\n", .{ptr_page, ptr_page * 4096}) catch unreachable;
+    debug.print("allocated {} pages {} (0x{X})\n", .{len, ptr_page, ptr_page * 4096});
     return @ptrFromInt(ptr_page * 4096 + hhdm_offset);
 }
 
-pub inline fn phys2ptr(comptime T: type, phys: usize) T {
+pub inline fn PtrFromPhys(comptime T: type, phys: usize) T {
     return @as(T, @ptrFromInt(phys +% hhdm_offset));
 }
-pub inline fn ptr2phys(ptr: anytype) usize {
+pub inline fn physFromPtr(ptr: anytype) usize {
     return @intFromPtr(ptr) -% hhdm_offset;
 }
 
@@ -267,16 +375,4 @@ const Block = extern struct {
     next: ?*Block
 };
 
-const BlockStatus = enum(usize) {
-    unused = 0, // not being used, can be overrided
-    free,
-    reserved,
-
-    kernel,
-    kernel_heap,
-    mem_page,
-
-    program_code,
-    program_data,
-    program_misc,
-};
+const BlockStatus = root.system.paging.MemStatus;
