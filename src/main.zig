@@ -66,14 +66,6 @@ pub fn main(_boot_info: BootInfo) noreturn {
 
     // allocator.free(heap);
 
-    var slice: []u8 = undefined;
-    slice.len = 4096;
-    slice.ptr = @as([*]u8, @ptrFromInt(0x10000));
-
-    @memset(slice, 0xBB);
-
-    debug.dumpHex(slice);
-
     while (true) {}
     unreachable;
 }

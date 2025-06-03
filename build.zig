@@ -143,7 +143,7 @@ pub fn build(b: *std.Build) void {
     qemu_args.appendSlice(&.{"-display", "gtk,zoom-to-fit=on"}) catch @panic("OOM");
 
     qemu_args.appendSlice(&.{"-D", "zig-out/log.txt"}) catch @panic("OOM");
-    qemu_args.appendSlice(&.{"-d", "int,cpu_reset"}) catch @panic("OOM");
+    qemu_args.appendSlice(&.{"-d", "int,mmu,cpu_reset,guest_errors,strace"}) catch @panic("OOM");
     qemu_args.appendSlice(&.{"--no-reboot"}) catch @panic("OOM");
     qemu_args.appendSlice(&.{"--no-shutdown"}) catch @panic("OOM");
     //qemu_args.appendSlice(&.{"-trace", "*xhci*"}) catch @panic("OOM");

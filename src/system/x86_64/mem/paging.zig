@@ -1,7 +1,7 @@
 // TODO implement level-5 page mapping (99% unecessary)
 const std = @import("std");
 const root = @import("root");
-const debug = root.system.serial.writer();
+const debug = root.debug;
 const paging = root.system.paging;
 const pmm = @import("pmm.zig");
 const cpuid = root.system.assembly.cpuid;
@@ -44,11 +44,17 @@ pub fn get_current_map() MemoryMap {
 pub fn set_current_map(map: MapPtr) void {
     current_map = map;
 }
+pub fn load_commited_map() void {
+    var cr3_val: Cr3Value = ctrl_regs.read(.cr3);
+    const phys = cr3_val.get_phys_addr();
+    current_map = pmm.PtrFromPhys(Table(PML45), phys);
+    debug.print("Loaded commited page table 0x{X} ({X})\n", .{phys, @intFromPtr(current_map)});
+}
 pub fn commit_map() void {
     var cr3_val: Cr3Value = ctrl_regs.read(.cr3);
     cr3_val.set_phys_addr(pmm.physFromPtr(current_map.?));
     ctrl_regs.write(.cr3, cr3_val);
-    debug.print("Comitted page table at 0x{X} ({X})", .{cr3_val.get_phys_addr(), @as(usize, @truncate(pmm.physFromPtr(current_map.?) >> 12))}) catch unreachable;
+    debug.print("Comitted page table at 0x{X} ({X})", .{cr3_val.get_phys_addr(), @as(usize, @truncate(pmm.physFromPtr(current_map.?) >> 12))});
 }
 
 
@@ -56,16 +62,40 @@ pub fn create_new_map() MapPtr {
     const new_page_phys = pmm.get_single_page(.mem_page);
     var mmap: Table(PML45) = @ptrCast(@alignCast(new_page_phys));
 
-    for (0 .. mmap.len) |i| {
-        mmap[i].present = false;
-        mmap[i].privilege = .user;
-        mmap[i].access = .read_only;
-    }
+    for (0 .. mmap.len) |i| mmap[i] = @bitCast(@as(usize, 0));
 
-    debug.print("Map created at address {X}\n", .{@intFromPtr(mmap)}) catch unreachable;
+    debug.print("Map created at address {X}\n", .{@intFromPtr(mmap)});
     current_map = mmap;
     return mmap;
 }
+
+pub fn lsmemmap() void {
+
+    debug.print("lsmemmap ({X}):\n", .{pmm.physFromPtr(current_map.?)});
+
+    for (current_map.?, 0..) |*cmap, i| if (cmap.present) {
+        debug.print("PML4E {: >3} - {s11}{x:0>12} - {}\n", .{i, if (i < 256) "0000" else "ffff", i<<39, cmap});
+
+        const page_dir_ptr: Table(PDPTE) = pmm.PtrFromPhys(Table(PDPTE), cmap.get_phys_addr());
+        for (page_dir_ptr, 0..) |*pdp, j| if (pdp.present) {
+            debug.print("\tPDPTE {: >3} - {s11}{x:0>12} - {}\n", .{j, if (i < 256) "0000" else "ffff", (i<<39)|(j<<30), pdp});
+            if (pdp.is_gb_page) continue;
+
+            const page_dir: Table(PDE) = pmm.PtrFromPhys(Table(PDE), pdp.get_phys_addr());
+            for (page_dir, 0..) |*pd, k| if (pd.present) {
+                debug.print("\t\tPDPE  {: >3} - {s11}{x:0>12} - {}\n", .{k, if (i < 256) "0000" else "ffff", (i<<39)|(j<<30)|(k<<21), pd});
+                if (pd.is_mb_page) continue;
+
+                const page_table: Table(PTE) = pmm.PtrFromPhys(Table(PTE), pd.get_phys_addr());
+                for (page_table, 0..) |*pt, l| if (pt.present) {
+                    debug.print("\t\t\tPTE   {: >3} - {s11}{x:0>12} - {}\n", .{l, if (i < 256) "0000" else "ffff", (i<<39)|(j<<30)|(k<<21)|(l<<12), pt});
+                };
+            };
+        };
+    };
+
+}
+
 
 
 pub fn map_single_page(phys_base: usize, virt_base: usize, comptime size: usize, attributes: Attributes) MMapError!void {
@@ -75,7 +105,6 @@ pub fn map_single_page(phys_base: usize, virt_base: usize, comptime size: usize,
 
     const pml4: Table(PML45) = b: {
         if (split.pml4 != 0 and split.pml4 != -1) std.debug.panic("Cannot map address {} without 5-level paging!", .{split});
-        // FIXME program is stopping after this line
         break :b current_map orelse @panic("No current map!");
     };
 
@@ -87,8 +116,9 @@ pub fn map_single_page(phys_base: usize, virt_base: usize, comptime size: usize,
         // no entry currently present, allocating a new one
         entry.* = @bitCast(@as(usize, 0));
         entry.access = .read_write;
-        entry.no_code = false;
         entry.privilege = if (split.pml4 < 0) .user else .kernel;
+        entry.cache_mode = .write_back;
+        entry.no_code = false;
         entry.present = true;
         
         break :b try create_page_table(PDPTE, entry);
@@ -101,10 +131,12 @@ pub fn map_single_page(phys_base: usize, virt_base: usize, comptime size: usize,
 
         entry.* = @bitCast(@as(usize, 0));
         entry.access = if (attributes.write) .read_write else .read_only;
-        entry.no_code = !attributes.execute;
         entry.privilege = if (attributes.privileged or split.pml4 >= 0) .kernel else .user;
-        entry.is_gb_page = true;
+        entry.cache_mode = .write_back;
+        entry.no_code = !attributes.execute;
+        
         entry.set_phys_addr(phys_base);
+        entry.is_gb_page = true;
         entry.present = true;
 
         return;
@@ -131,10 +163,11 @@ pub fn map_single_page(phys_base: usize, virt_base: usize, comptime size: usize,
         entry.access = .read_write;
         entry.no_code = false;
         entry.privilege = if (split.pml4 < 0) .user else .kernel;
+        entry.cache_mode = .write_though;
         entry.is_gb_page = false;
         entry.present = true;
 
-         break :b try create_page_table(PDE, entry);
+        break :b try create_page_table(PDE, entry);
     };
 
     if (size == 20) {
@@ -155,9 +188,8 @@ pub fn map_single_page(phys_base: usize, virt_base: usize, comptime size: usize,
 
     const table: Table(PTE) = b4: {
         var entry: *PDE = &directory[split.table];
-        if (entry.present) {
-            break :b4 pmm.PtrFromPhys(Table(PTE), entry.get_phys_addr());
-        }
+        if (entry.present) break :b4 pmm.PtrFromPhys(Table(PTE), entry.get_phys_addr());
+
         entry.* = @bitCast(@as(usize, 0));
         entry.access = .read_write;
         entry.no_code = false;
@@ -195,7 +227,7 @@ pub fn map_range(phys_base: usize, virt_base: usize, length: usize, attributes: 
         if (attributes.privileged) "P" else "-",
         if (attributes.disable_cache) "-" else "C",
         if (attributes.lock) "L" else "-"
-    }) catch unreachable;
+    });
 
     var pa = phys_base;
     var la = virt_base;
@@ -269,15 +301,15 @@ const Privilege = enum(u1) {
     kernel = 0,
     user = 1
 };
-const CacheMode = packed union {
-    cacheable: packed struct(u2) {
-        cache_mode: enum(u1) { write_though = 0, write_back = 1 },
-        _rsvd_0: bool = false,
-    },
-    uncacheable: packed struct(u2) {
-        _rsvd_0: u1 = 0,
-        _rsvd_2: bool = true,
-    },
+const CacheMode = enum(u2) {
+    /// Reading in cache. Writing go to
+    /// both cache and RAM at the same time
+    write_though = 0b00,
+    /// Reading in cache. Writing goes
+    /// first to cache, after to RAM
+    write_back = 0b10,
+    /// Reading and writing in RAM/IO
+    uncacheable = 0b01
 };
 
 pub const SplitPagingAddr = packed struct(isize) {
@@ -298,6 +330,7 @@ pub const SplitPagingAddr = packed struct(isize) {
 // by the kernel.
 // _reserved_x must aways be 0!
 
+/// Page map level 4/5 entry
 const PML45 = packed struct(u64) {
     present: bool,
     access: AccessMode,
@@ -320,13 +353,28 @@ const PML45 = packed struct(u64) {
     pub inline fn set_phys_addr(self: *@This(), addr: usize) void {
         self.physaddr = @truncate(addr >> 12);
     }
+
+    pub fn format(s: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, w: anytype) !void {
+        w.print("{s: <8} ", .{if (s.present) "present" else "disabled"}) catch unreachable;
+        w.print("R{s}{s}{s} ", .{
+            if (s.access == .read_write) "W" else "-",
+            if (s.no_code) "-" else "X",
+            if (s.privilege == .kernel) "P" else "-",
+        }) catch unreachable;
+        
+        w.print("${X:0>16}", .{s.get_phys_addr()}) catch unreachable;
+        
+        w.print("cache = {s} ", .{switch (s.cache_mode) { .uncacheable => "un", .write_though => "wt", .write_back => "wb"}}) catch unreachable;
+        w.print("acessed = {: <5} ", .{s.accessed}) catch unreachable;
+    }
 };
 
+/// Page directory pointer table entry
 const PDPTE = packed struct(u64) {
     present: bool,
     access: AccessMode,
     privilege: Privilege,
-    cache: CacheMode,
+    cache_mode: CacheMode,
     accessed: bool,
 
     dirty: bool,
@@ -349,7 +397,7 @@ const PDPTE = packed struct(u64) {
         pd_ptr: packed struct(u51) {
             addr: u40, // must be left shifted 12 to get true addr
             _reserved_0: u7 = 0,
-            _reserved_2: u4 = 0,
+            _reserved_1: u4 = 0,
         },
     
     },
@@ -370,13 +418,35 @@ const PDPTE = packed struct(u64) {
             self.physaddr.pd_ptr.addr = @truncate(addr >> 12);
         }
     }
+
+    pub fn format(s: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, w: anytype) !void {
+        w.print("{s: <8} ", .{if (s.present) "present" else "disabled"}) catch unreachable;
+        w.print("R{s}{s}{s} ", .{
+            if (s.access == .read_write) "W" else "-",
+            if (s.no_code) "-" else "X",
+            if (s.privilege == .kernel) "P" else "-",
+        }) catch unreachable;
+
+        w.print("${X:0>16} ", .{s.get_phys_addr()}) catch unreachable;
+
+        w.print("cache = {s} ", .{switch (s.cache_mode) { .uncacheable => "un", .write_though => "wt", .write_back => "wb"}}) catch unreachable;
+        w.print("acessed = {: <5} ", .{s.accessed}) catch unreachable;
+        w.print("global = {: <5} ", .{s.global}) catch unreachable;
+        w.print("ispage = {: <5} ", .{s.is_gb_page}) catch unreachable;
+
+        if (s.is_gb_page) {
+            w.print("pkey = {x:0<4} ", .{s.physaddr.gb_page.protection_key}) catch unreachable;
+            w.print("atTbl = {: <5}", .{s.physaddr.gb_page.pat}) catch unreachable;
+        }
+    }
 };
 
+// Page directory entry
 const PDE = packed struct(u64) {
     present: bool,
     access: AccessMode,
     privilege: Privilege,
-    cache: CacheMode,
+    cache_mode: CacheMode,
     accessed: bool,
     dirty: bool,
 
@@ -392,14 +462,14 @@ const PDE = packed struct(u64) {
             _reserved_0: u8 = 0,
             physaddr: u31, // must be left shifted 21 to get true addr
             _reserved_1: u7 = 0,
-            protection_key: u4, // ignored if pointing to page table
+            protection_key: u4,
         },
 
         // If being used as a normal PDE
         pd_ptr: packed struct(u51) {
             addr: u40, // must be left shifted 12 to get true addr
             _reserved_0: u7 = 0,
-            _ignored1: u4 = 0,
+            _reserved_1: u4 = 0,
         },
 
     },
@@ -408,7 +478,7 @@ const PDE = packed struct(u64) {
 
     pub fn get_phys_addr(self: @This()) usize {
         if (self.is_mb_page) {
-            // 2mb page
+            // 1mb page
             return @as(u52, @intCast(self.physaddr.mb_page.physaddr)) << 21;
         } else {
             return @as(u52, @intCast(self.physaddr.pd_ptr.addr)) << 12;
@@ -417,36 +487,76 @@ const PDE = packed struct(u64) {
 
     pub fn set_phys_addr(self: *@This(), addr: usize) void {
         if (self.is_mb_page) {
-            // 2mb page
+            // 1mb page
             self.physaddr.mb_page.physaddr = @truncate(addr >> 21);
         } else {
             self.physaddr.pd_ptr.addr = @truncate(addr >> 12);
         }
     }
+
+    pub fn format(s: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, w: anytype) !void {
+        w.print("{s: <8} ", .{if (s.present) "present" else "disabled"}) catch unreachable;
+        w.print("R{s}{s}{s} ", .{
+            if (s.access == .read_write) "W" else "-",
+            if (s.no_code) "-" else "X",
+            if (s.privilege == .kernel) "P" else "-",
+        }) catch unreachable;
+
+        w.print("${X:0>16} ", .{s.get_phys_addr()}) catch unreachable;
+
+        w.print("cache = {s} ", .{switch (s.cache_mode) { .uncacheable => "un", .write_though => "wt", .write_back => "wb"}}) catch unreachable;
+        w.print("acessed = {: <5} ", .{s.accessed}) catch unreachable;
+        w.print("global = {: <5} ", .{s.global}) catch unreachable;
+        w.print("ispage = {: <5} ", .{s.is_mb_page}) catch unreachable;
+
+        if (s.is_mb_page) {
+            w.print("global = {: <5} ", .{s.global}) catch unreachable;
+            w.print("pkey = {x:0<4} ", .{s.physaddr.mb_page.protection_key}) catch unreachable;
+            w.print("atTbl = {: <5}", .{s.physaddr.mb_page.pat}) catch unreachable;
+        }
+
+    }
 };
 
+// Page table entry
 const PTE = packed struct(u64) {
     present: bool,
     access: AccessMode,
     privilege: Privilege,
-    cache: CacheMode,
+    cache_mode: CacheMode,
     accessed: bool,
     dirty: bool,
     attribute_table: bool,
     global: bool,
     _reserved_0: u3 = 0,
     physaddr: u40, // must be left shifted 12 to get true addr
-    _reserved_1: u7 = 0,
+    _available_0: u7 = 0,
     protection_key: u4,
     no_code: bool,
 
-    const physaddr_mask = makeTruncMask(@This(), .physaddr);
+    const physaddr_mask = makeTruncMask(@This(), "physaddr");
     pub fn get_phys_addr(self: @This()) usize {
         return @as(u64, @bitCast(self)) & physaddr_mask;
     }
-
     pub fn set_phys_addr(self: *@This(), addr: usize) void {
         self.physaddr = @truncate(addr >> 12);
+    }
+
+    pub fn format(s: @This(), comptime _: []const u8, _: std.fmt.FormatOptions, w: anytype) !void {
+        w.print("{s: <8} ", .{if (s.present) "present" else "disabled"}) catch unreachable;
+        w.print("R{s}{s}{s} ", .{
+            if (s.access == .read_write) "W" else "-",
+            if (s.no_code) "-" else "X",
+            if (s.privilege == .kernel) "P" else "-",
+        }) catch unreachable;
+
+        w.print("${X:0>16} ", .{s.get_phys_addr()}) catch unreachable;
+
+        w.print("cache = {s} ", .{switch (s.cache_mode) { .uncacheable => "un", .write_though => "wt", .write_back => "wb"}}) catch unreachable;
+        w.print("acessed = {: <5} ", .{s.accessed}) catch unreachable;
+        w.print("global = {: <5} ", .{s.global}) catch unreachable;
+        w.print("pkey = {x:0<4} ", .{s.protection_key}) catch unreachable;
+        w.print("atTbl = {: <5}", .{s.attribute_table}) catch unreachable;
     }
 };
 

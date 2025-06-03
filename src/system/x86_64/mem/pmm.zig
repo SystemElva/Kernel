@@ -156,16 +156,18 @@ pub fn setup() void {
 
 
     // Creating identity map
-    const idmap_len = std.math.shl(usize, 1, phys_mapping_range_bits - 12);
+    const idmap_len = std.math.shl(usize, 1, phys_mapping_range_bits);
     debug.print("\nmapping range of {d} bits ({} pages, {s})\n", .{phys_mapping_range_bits, idmap_len, std.fmt.fmtIntSizeBin(idmap_len * 4096)});
     paging.map_range(0, hhdm_offset, idmap_len, atributes_ROX_privileged_fixed) catch unreachable;
 
-    paging.map_range(0, 0, idmap_len, atributes_ROX_privileged_fixed) catch unreachable;
+    //paging.map_range(0, 0, idmap_len, atributes_ROX_privileged_fixed) catch unreachable;
 
     // Mapping kernel
-    debug.print("\nmapping kernel range {X} .. {X} tp {X}\n", .{kernel_phys, kernel_phys + kernel_len, kernel_virt});
+    debug.print("\nmapping kernel range {X} .. {X} to {X}\n", .{kernel_phys, kernel_phys + kernel_len, kernel_virt});
     paging.map_range(kernel_phys, kernel_virt, kernel_len, atributes_ROX_privileged_fixed) catch unreachable;
     
+    lsmemblocks();
+
     debug.print("Commiting new map to CR3...\n", .{});
     paging.commit_map();
     
