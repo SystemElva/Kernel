@@ -73,7 +73,9 @@ pub fn build(b: *std.Build) void {
         .aarch64 => .small,
         .x86_64 => .kernel
     };
-    
+    kernel_mod.omit_frame_pointer = false;
+    kernel_mod.strip = false;
+
     // kernel executable
     const kernel_exe = b.addExecutable(.{
         .name = "kernel",
@@ -152,15 +154,17 @@ pub fn build(b: *std.Build) void {
     qemu_args.appendSlice(&.{"-qmp", "unix:qmp.socket,server,nowait"}) catch @panic("OOM");
 
     const run_qemu = b.addSystemCommand(qemu_args.items);
+    const after_run = b.addSystemCommand(&.{"bash", "afterrun.sh"});
 
     // default (only build)
     b.getInstallStep().dependOn(&disk.step);
 
     run_qemu.step.dependOn(b.getInstallStep());
+    after_run.step.dependOn(&run_qemu.step);
 
     // build and run
     const run_step = b.step("run", "Run the OS in qemu");
-    run_step.dependOn(&run_qemu.step);
+    run_step.dependOn(&after_run.step);
 }
 
 fn addDummyStep(b: *Build, name: []const u8) *Step {

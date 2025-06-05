@@ -74,14 +74,15 @@ pub inline fn get_boot_info() BootInfo {
     return boot_info;
 }
 
-pub fn panic(msg: []const u8, stack_trace: ?*std.builtin.StackTrace, return_address: ?usize) noreturn {
-    _ = return_address;
+pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, return_address: ?usize) noreturn {
+    debug.print("\n!!! KERNEL PANIC !!!\n", .{});
+    debug.print("Error: {s}\n\n", .{msg});
 
-    debug.print("!!! KERNEL PANIC !!!\n", .{});
-    debug.print("Error: {s}\n", .{msg});
-
-    if (stack_trace) |st| {
-        debug.dumpStackTrace(st.*);
+    if (return_address) |ret| {
+        debug.print("Stack Trace:\n", .{});
+        debug.dumpStackTrace(ret);
+    } else {
+        debug.print("No Stack Trace\n", .{});
     }
 
     while (true) {}

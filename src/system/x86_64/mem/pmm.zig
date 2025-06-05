@@ -17,8 +17,8 @@ var memory_blocks_buffer: []Block = undefined;
 
 pub var hhdm_offset: usize = undefined;
 var total_memory_bytes: usize = undefined;
-var kernel_page_start: usize = undefined;
-var kernel_page_end: usize = undefined;
+pub var kernel_page_start: usize = undefined;
+pub var kernel_page_end: usize = undefined;
 
 pub const page_size = 4096;
 
@@ -160,8 +160,6 @@ pub fn setup() void {
     debug.print("\nmapping range of {d} bits ({} pages, {s})\n", .{phys_mapping_range_bits, idmap_len, std.fmt.fmtIntSizeBin(idmap_len * 4096)});
     paging.map_range(0, hhdm_offset, idmap_len, atributes_ROX_privileged_fixed) catch unreachable;
 
-    //paging.map_range(0, 0, idmap_len, atributes_ROX_privileged_fixed) catch unreachable;
-
     // Mapping kernel
     debug.print("\nmapping kernel range {X} .. {X} to {X}\n", .{kernel_phys, kernel_phys + kernel_len, kernel_virt});
     paging.map_range(kernel_phys, kernel_virt, kernel_len, atributes_ROX_privileged_fixed) catch unreachable;
@@ -181,39 +179,50 @@ pub fn setup() void {
     var cur_block: ?*Block = memory_blocks_root;
     var idx: usize = 0;
 
-    while (cur_block != null) : ({ idx += 1; cur_block = cur_block.?.next; }) {
-        @memcpy(std.mem.asBytes(&memory_blocks_buffer[idx]), std.mem.asBytes(cur_block.?));
-        if (idx > 0) memory_blocks_buffer[idx].previous = &memory_blocks_buffer[idx - 1];
+    while (cur_block != null) {
+        memory_blocks_buffer[idx].status = cur_block.?.status;
+        memory_blocks_buffer[idx].start = cur_block.?.start;
+        memory_blocks_buffer[idx].length = cur_block.?.length;
+
+        if (idx > 0) {
+            memory_blocks_buffer[idx].previous = &memory_blocks_buffer[idx - 1];
+            memory_blocks_buffer[idx - 1].next = &memory_blocks_buffer[idx];
+        }
+
+        idx += 1;
+        cur_block = cur_block.?.next;
+        debug.print("{x}\n", .{@intFromPtr(cur_block)});
     }
+    memory_blocks_buffer[idx - 1].next = null;
 
     memory_blocks_buffer[0].previous = null;
     memory_blocks_buffer[idx - 1].next = null;
-    memory_blocks_root = &memory_blocks_buffer[0];
 
+    memory_blocks_root = &memory_blocks_buffer[0];
+    debug.print("Memory blocks final heap created\n", .{});
     lsmemblocks();
 }
 
-fn lsmemblocks() void {
+pub fn lsmemblocks() void {
     debug.print("\nMemory blocks:\n", .{});
 
     var free_pages: usize = 0;
     var used_pages: usize = 0;
 
     var cur: ?*Block = memory_blocks_root;
-    while (cur != null) : (cur = cur.?.next) {
-        debug.print("- beg: {: >10}; end: {: >10}; len: {: >10}; prev: {: >9} .. {: >9}; next: {: >9} .. {: >9}; status: {s}\n", .{
+    var last: ?*Block = null;
+
+    while (cur != null) : ({last = cur; cur = cur.?.next;}) {
+        if (cur.?.previous != last) break;
+
+        debug.print("- beg: {: >10}; end: {: >10}; len: {: >10}; status: {s}\n", .{
             cur.?.start,
             cur.?.start + cur.?.length,
             cur.?.length,
 
-            if(cur.?.previous == null) 0 else cur.?.previous.?.start,
-            if(cur.?.previous == null) 0 else cur.?.previous.?.start + cur.?.previous.?.length,
-
-            if(cur.?.next == null) 0 else cur.?.next.?.start,
-            if(cur.?.next == null) 0 else cur.?.next.?.start + cur.?.next.?.length,
-
             @tagName(cur.?.status)
         });
+
         if (cur.?.status == .free) free_pages += cur.?.length else used_pages += cur.?.length;
     }
 
@@ -223,13 +232,18 @@ fn lsmemblocks() void {
 
 /// Allocates and returns a single page
 pub fn get_single_page(status: BlockStatus) *anyopaque {
+    debug.print("allocating page... ", .{});
+
     var block: *Block = undefined;
 
     // search for a free block
     var free_block = b: {
         var a: ?*Block = memory_blocks_root;
         while (a != null and a.?.status != .free) : (a = a.?.next) {}
-        if (a == null) @panic("OOM");
+        if (a == null) {
+            lsmemblocks();
+            @panic("OOM");
+        }
         break :b a.?;
     };
 
@@ -298,8 +312,11 @@ pub fn get_multiple_pages(len: usize, status: BlockStatus) ?*anyopaque {
     // search for a free block
     var free_block = b: {
         var a: ?*Block = memory_blocks_root;
-        while (a != null and a.?.status != .free and a.?.length < len) : (a = a.?.next) {}
-        if (a == null) @panic("OOM");
+        while (a != null and (a.?.status != .free or a.?.length < len)) : (a = a.?.next) {}
+        if (a == null) {
+            lsmemblocks();
+            @panic("OOM");
+        }
         break :b a.?;
     };
 

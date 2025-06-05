@@ -48,3 +48,21 @@ pub const MemStatus = enum(usize) {
     program_data,
     program_misc,
 };
+
+const sys_paging = switch (system.arch) {
+  //.x86 => ,
+  .x86_64 => @import("x86_64/mem/paging.zig"),
+  else => unreachable
+};
+
+pub const create_new_map = sys_paging.create_new_map;
+pub const set_current_map = sys_paging.set_current_map;
+pub const get_current_map = sys_paging.get_current_map;
+pub const load_commited_map = sys_paging.load_commited_map;
+pub const lsmemmap = sys_paging.lsmemmap;
+
+pub const map_single_page = sys_paging.map_single_page;
+pub const map_range = sys_paging.map_range;
+
+pub const unmap_single_page = sys_paging.unmap_single_page;
+pub const unmap_range = sys_paging.unmap_range;

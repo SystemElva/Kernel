@@ -1,16 +1,32 @@
 const root = @import("root");
 const std = @import("std");
+const builtin = @import("builtin");
 
 pub const serial = root.system.serial;
 const tty_config: std.io.tty.Config = .no_color;
 
+pub const StackTrace = struct {
+
+};
+
 pub inline fn print(fmt: []const u8, args: anytype) void {
-    serial.writer().print(fmt, args) catch unreachable;
+    serial.writer().print(fmt, args) catch |err| std.debug.panic("print error: {s}", .{@errorName(err)});
 }
 
-pub fn dumpStackTrace(stackTrace: std.builtin.StackTrace) void {
-    print("TODO: stack trace", .{});
-    _ = stackTrace;
+pub fn dumpStackTrace(ret_address: usize) void {
+
+    if (builtin.strip_debug_info) {
+        print("Unable to dump stack trace: debug info stripped\n", .{});
+        return;
+    }
+
+    const writer = serial.writer();
+
+    // I hate my life
+    switch (root.system.arch) {
+        .x86_64 => @import("../system/x86_64/debug/stackTrace.zig").dumpStackTrace(ret_address, writer),
+        else => unreachable
+    }
 }
 
 

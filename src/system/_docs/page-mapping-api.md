@@ -1,10 +1,14 @@
 # Page Mapping API
 
-This file describles how to communicate and interact with the page mapping API in diferent systems.
+This file describles how to communicate and interact with the Page Mapping API in diferent systems.
 This API allows to map, remap and unmap memory pages for specific addressess with specific permissions.
 
 All the API access is inside the `root.system.paging` namespace
 
+## Usage
+
+The Page Mapping API is based on a state machine, where a map is firstly selected, then modified.
+To make a page active, it must be firstly selected, then commited.
 
 ## Common Data Structures
 ```rust
@@ -61,24 +65,44 @@ pub const MMapError = error {
 ```rust
 pub fn get_current_map() MemoryMap
 ```
-Returns the memory map being currently used.
+Returns the current selected memory map as `MemoryMap`.
+Should be used to save the reference to the memory map.
 
 ```rust
-pub fn set_current_map(map: MemoryMap) void
+// Sets the current selected memory map
+pub fn set_current_map(map: MapPtr) void
 ```
 Set the memory map currently being used.
 
 ```rust
+pub fn load_commited_map()
+```
+Selects the currently active memory map.
+In `x86_64`, selects the map addressed by `CR3`
+
+```rust
+pub fn commit_map() void
+```
+Activate the currently selected memory map.
+In `x86_64`, sets the map address to `CR3`
+
+```rust
 pub fn create_new_map() MemoryMap
 ```
-Create and set a completelly new memory map.
+Create and set a completelly empty memory map.
+
+```rust
+pub fn lsmemmap() void
+```
+Debug prints the selected memory map.
+Will produce lots of lines of log, so use with caution!
 
 
 ```rust
 pub fn map_single_page(phys_base: usize, virt_base: usize, size: usize, attributes: Attributes) MMapError!void
 ```
 Maps a single page of the designated size with the designated attributes. \
-`size` must be a base 2 expoent. \
+`size` must be a base 2 expoent and a value accepted by the system. \
 Do not checks if the physical address is valid.
 
 ```rust

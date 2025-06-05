@@ -38,18 +38,22 @@ pub fn enumerate_paging_features() void {
 }
 
 
+// Returns the current selected memory map
 pub fn get_current_map() MemoryMap {
     return current_map;
 }
+// Sets the current selected memory map
 pub fn set_current_map(map: MapPtr) void {
     current_map = map;
 }
+// Loads the currently active memory map
 pub fn load_commited_map() void {
     var cr3_val: Cr3Value = ctrl_regs.read(.cr3);
     const phys = cr3_val.get_phys_addr();
     current_map = pmm.PtrFromPhys(Table(PML45), phys);
     debug.print("Loaded commited page table 0x{X} ({X})\n", .{phys, @intFromPtr(current_map)});
 }
+// Active the currently loaded memory map
 pub fn commit_map() void {
     var cr3_val: Cr3Value = ctrl_regs.read(.cr3);
     cr3_val.set_phys_addr(pmm.physFromPtr(current_map.?));
@@ -57,7 +61,7 @@ pub fn commit_map() void {
     debug.print("Comitted page table at 0x{X} ({X})", .{cr3_val.get_phys_addr(), @as(usize, @truncate(pmm.physFromPtr(current_map.?) >> 12))});
 }
 
-
+// Creates a new empty memory map
 pub fn create_new_map() MapPtr {
     const new_page_phys = pmm.get_single_page(.mem_page);
     var mmap: Table(PML45) = @ptrCast(@alignCast(new_page_phys));
@@ -69,6 +73,7 @@ pub fn create_new_map() MapPtr {
     return mmap;
 }
 
+// Debug prints the selected memory map (lots of logs)
 pub fn lsmemmap() void {
 
     debug.print("lsmemmap ({X}):\n", .{pmm.physFromPtr(current_map.?)});
@@ -110,7 +115,6 @@ pub fn map_single_page(phys_base: usize, virt_base: usize, comptime size: usize,
 
     const page_dir: Table(PDPTE) = b: {
         const entry: *PML45 = &pml4[split.dirptr];
-
         if (entry.present) break :b pmm.PtrFromPhys(Table(PDPTE),entry.get_phys_addr());
 
         // no entry currently present, allocating a new one
@@ -215,11 +219,10 @@ pub fn map_single_page(phys_base: usize, virt_base: usize, comptime size: usize,
 }
 pub fn map_range(phys_base: usize, virt_base: usize, length: usize, attributes: Attributes) MMapError!void {
 
-    debug.print("mapping range ${X} .. ${X} -> ${X} ({s}{s}{s}{s}{s}{s})\n",
+    debug.print("mapping range ${X}..${X} -> ${X}..${X} ({s}{s}{s}{s}{s}{s})\n",
     .{
-        phys_base,
-        phys_base + length * 1024,
-        virt_base,
+        phys_base, phys_base + length,
+        virt_base, virt_base + length,
 
         if (attributes.read) "R" else "-",
         if (attributes.write) "W" else "-",
@@ -282,12 +285,9 @@ pub fn unmap_range(virt_base: usize, length: usize) MMapError!void {
 
 
 fn create_page_table(comptime T: type, entry: anytype) !Table(T) {
-
-    const Ret = Table(T);
     const tbl = pmm.get_single_page(.mem_page);
-
     entry.set_phys_addr(pmm.physFromPtr(tbl));
-    const ptr: Ret = @ptrCast(@alignCast(tbl));
+    const ptr: Table(T) = @ptrCast(@alignCast(tbl));
     @memset(std.mem.asBytes(ptr), 0);
     return ptr;
 }
