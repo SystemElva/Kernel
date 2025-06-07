@@ -8,6 +8,6 @@ the memory's priority for the process.
 | ---------: | :---------------------------------------------------- |
 |  `0x0001`  |  [map_to_memory](./0001_alloc_pages.md)               |
 |  `0x0002`  |  [free_pages](./0002_free_pages.md)                   |
-|  `0x0003`  |  [remap_page](./0002_free_pages.md)                   |
-|  `0x0004`  |  [get_page_metadata](./0003_get_page_metadata.md)     |
-|  `0x0005`  |  [annotate_page](./0003_annotate_page.md)             |
+|  `0x0003`  |  [remap_page](./0003_remap_pages.md)                  |
+|  `0x0004`  |  [get_page_metadata](./0004_get_page_metadata.md)     |
+|  `0x0005`  |  [annotate_page](./0005_annotate_page.md)             |
