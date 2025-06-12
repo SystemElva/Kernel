@@ -24,7 +24,7 @@ fn logFn(comptime message_level: std.log.Level, comptime scope: @TypeOf(.enum_li
     debug.print(format, args);
 }
 fn criptoRandomSeed(buffer: []u8) void {
-    _ = buffer;
+    @memset(buffer, 0xC0);
 }
 
 var boot_info: BootInfo = undefined;
@@ -42,29 +42,67 @@ pub fn main(_boot_info: BootInfo) noreturn {
     // Printing hello world
     debug.print("\nHello, World from {s}!\n", .{ @tagName(system.arch) });
  
-    // // Testing general purpose alocator
-    // const DebugAllocator = std.heap.DebugAllocator(.{
-    //     .thread_safe = false
-    // });
+    // Testing kernel allocator
+    const allocator = system.mem.vmm.allocator();
+
+    var heap = allocator.alloc(u32, 20) catch unreachable;
+    var b1: []u8 = undefined;
+    var b2: []u8 = undefined;
+    b1.ptr = @ptrFromInt(@intFromPtr(heap.ptr) - 32); b1.len = 32;
+    b2.ptr = @ptrFromInt(@intFromPtr(heap.ptr) + heap.len * @sizeOf(u32)); b2.len = 64;
+
+    debug.print("new_heap_____________________\n", .{});
+    debug.print("before:\n", .{});
+    debug.dumpHex(b1);
+
+    debug.print("data:\n", .{});
+    debug.dumpHex(std.mem.sliceAsBytes(heap));
+
+    debug.print("after:\n", .{});
+    debug.dumpHex(b2);
     
-    // var gpalloc: DebugAllocator = .init;
-    // const allocator = gpalloc.allocator();
+    debug.print("\n", .{});
 
-    // const heap = allocator.alloc(usize, 10) catch unreachable;
-    // const random = std.crypto.random;
-
-    // for (0..10) |i| {
-    //     heap[i] = random.int(usize);
-    // }
+    @memset(heap, 0x74736554);
     
-    // for (0..10) |i| {
-    //     debug.print("Value in heap[{}] is {}", .{i, heap[i]});
-    // }
 
-    // _ = allocator.resize(heap, 2048);
-    // debug.dumpHex(std.mem.sliceAsBytes(heap));
+    debug.print("after_memset________________\n", .{});
+    debug.print("before:\n", .{});
+    debug.dumpHex(b1);
 
-    // allocator.free(heap);
+    debug.print("data:\n", .{});
+    debug.dumpHex(std.mem.sliceAsBytes(heap));
+
+    debug.print("after:\n", .{});
+    debug.dumpHex(b2);
+    
+    debug.print("\n", .{});
+
+    system.mem.vmm.lsmemblocks();
+
+    _ = allocator.resize(heap, 200);
+    heap = heap.ptr[0 .. 200];
+    b2.ptr =  @ptrFromInt(@intFromPtr(heap.ptr) + heap.len * @sizeOf(u32)); b2.len = 64;
+
+    debug.print("after_resize_______________\n", .{});
+    debug.print("before:\n", .{});
+    debug.dumpHex(b1);
+
+    debug.print("data:\n", .{});
+    debug.dumpHex(std.mem.sliceAsBytes(heap));
+
+    debug.print("after:\n", .{});
+    debug.dumpHex(b2);
+    
+    debug.print("\n", .{});
+
+    system.mem.vmm.lsmemblocks();
+
+    allocator.free(heap);
+
+    system.mem.vmm.lsmemblocks();
+
+    debug.print("Execution ended. Halting...\n", .{});
 
     while (true) {}
     unreachable;

@@ -2,7 +2,7 @@
 const std = @import("std");
 const root = @import("root");
 const debug = root.debug;
-const paging = root.system.paging;
+const paging = root.system.mem.paging;
 const pmm = @import("pmm.zig");
 const cpuid = root.system.assembly.cpuid;
 
@@ -115,7 +115,7 @@ pub fn map_single_page(phys_base: usize, virt_base: usize, comptime size: usize,
 
     const page_dir: Table(PDPTE) = b: {
         const entry: *PML45 = &pml4[split.dirptr];
-        if (entry.present) break :b pmm.PtrFromPhys(Table(PDPTE),entry.get_phys_addr());
+        if (entry.present) break :b pmm.ptrFromPhys(Table(PDPTE),entry.get_phys_addr());
 
         // no entry currently present, allocating a new one
         entry.* = @bitCast(@as(usize, 0));
@@ -161,7 +161,7 @@ pub fn map_single_page(phys_base: usize, virt_base: usize, comptime size: usize,
     const directory: Table(PDE) = b: {
 
         var entry: *PDPTE = &page_dir[split.directory];
-        if (entry.present) break :b pmm.PtrFromPhys(Table(PDE), entry.get_phys_addr());
+        if (entry.present) break :b pmm.ptrFromPhys(Table(PDE), entry.get_phys_addr());
 
         entry.* = @bitCast(@as(usize, 0));
         entry.access = .read_write;
@@ -192,7 +192,7 @@ pub fn map_single_page(phys_base: usize, virt_base: usize, comptime size: usize,
 
     const table: Table(PTE) = b4: {
         var entry: *PDE = &directory[split.table];
-        if (entry.present) break :b4 pmm.PtrFromPhys(Table(PTE), entry.get_phys_addr());
+        if (entry.present) break :b4 pmm.ptrFromPhys(Table(PTE), entry.get_phys_addr());
 
         entry.* = @bitCast(@as(usize, 0));
         entry.access = .read_write;

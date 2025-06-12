@@ -22,6 +22,19 @@ pub var kernel_page_end: usize = undefined;
 
 pub const page_size = 4096;
 
+pub const atributes_ROX_privileged_fixed = root.system.mem.paging.Attributes {
+    .privileged = true,
+    
+    .read = true,
+    .write = true,
+    .execute = true,
+
+    // This will prevent the kernel to go into the swap memory,
+    // not desired as this pages are shared by all aplications
+    .lock = true,
+};
+
+
 pub fn setup() void {
     
     var blocks: [30]Block = undefined;
@@ -142,19 +155,6 @@ pub fn setup() void {
     const phys_mapping_range_bits = @min(paging.features.maxphyaddr, 39);
 
 
-    const atributes_ROX_privileged_fixed = root.system.paging.Attributes {
-        .privileged = true,
-        
-        .read = true,
-        .write = true,
-        .execute = true,
-
-        // This will prevent the kernel to go into the swap memory,
-        // not desired as this pages are shared by all aplications
-        .lock = true,
-    };
-
-
     // Creating identity map
     const idmap_len = std.math.shl(usize, 1, phys_mapping_range_bits);
     debug.print("\nmapping range of {d} bits ({} pages, {s})\n", .{phys_mapping_range_bits, idmap_len, std.fmt.fmtIntSizeBin(idmap_len * 4096)});
@@ -204,7 +204,7 @@ pub fn setup() void {
 }
 
 pub fn lsmemblocks() void {
-    debug.print("\nMemory blocks:\n", .{});
+    debug.print("\nPhysical Memory Blocks:\n", .{});
 
     var free_pages: usize = 0;
     var used_pages: usize = 0;
@@ -212,13 +212,19 @@ pub fn lsmemblocks() void {
     var cur: ?*Block = memory_blocks_root;
     var last: ?*Block = null;
 
+    debug.print("| Beguin     End        Length     Ptr              Length (bytes)   Status\n", .{});
+    debug.print("|---------------------------------------------------------------------------------\n", .{});
+
     while (cur != null) : ({last = cur; cur = cur.?.next;}) {
         if (cur.?.previous != last) break;
 
-        debug.print("- beg: {: >10}; end: {: >10}; len: {: >10}; status: {s}\n", .{
+        debug.print("| {: >10} {: >10} {: >10} {x: >16} {: >16} {s}\n", .{
             cur.?.start,
             cur.?.start + cur.?.length,
             cur.?.length,
+
+            cur.?.start * page_size,
+            cur.?.length * page_size,
 
             @tagName(cur.?.status)
         });
@@ -226,14 +232,14 @@ pub fn lsmemblocks() void {
         if (cur.?.status == .free) free_pages += cur.?.length else used_pages += cur.?.length;
     }
 
+    debug.print("|---------------------------------------------------------------------------------\n", .{});
+
     debug.print("{} free pages\n", .{free_pages});
     debug.print("{} used pages\n\n", .{used_pages});
 }
 
 /// Allocates and returns a single page
 pub fn get_single_page(status: BlockStatus) *anyopaque {
-    debug.print("allocating page... ", .{});
-
     var block: *Block = undefined;
 
     // search for a free block
@@ -303,7 +309,7 @@ pub fn get_single_page(status: BlockStatus) *anyopaque {
         }
     }
 
-    debug.print("allocated page {} (0x{X})\n", .{ptr_page, ptr_page * 4096});
+    //debug.print("allocated page {} (0x{X})\n", .{ptr_page, ptr_page * 4096});
     return @ptrFromInt(ptr_page * 4096 + hhdm_offset);
 }
 pub fn get_multiple_pages(len: usize, status: BlockStatus) ?*anyopaque {
@@ -372,11 +378,11 @@ pub fn get_multiple_pages(len: usize, status: BlockStatus) ?*anyopaque {
         }
     }
 
-    debug.print("allocated {} pages {} (0x{X})\n", .{len, ptr_page, ptr_page * 4096});
+    //debug.print("allocated {} pages {} (0x{X})\n", .{len, ptr_page, ptr_page * 4096});
     return @ptrFromInt(ptr_page * 4096 + hhdm_offset);
 }
 
-pub inline fn PtrFromPhys(comptime T: type, phys: usize) T {
+pub inline fn ptrFromPhys(comptime T: type, phys: usize) T {
     return @as(T, @ptrFromInt(phys +% hhdm_offset));
 }
 pub inline fn physFromPtr(ptr: anytype) usize {
@@ -394,4 +400,4 @@ const Block = extern struct {
     next: ?*Block
 };
 
-const BlockStatus = root.system.paging.MemStatus;
+const BlockStatus = root.system.mem.paging.MemStatus;
