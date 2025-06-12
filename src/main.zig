@@ -102,6 +102,9 @@ pub fn main(_boot_info: BootInfo) noreturn {
 
     system.mem.vmm.lsmemblocks();
 
+    // Testing Stderr
+    debug.err("Hello World from Stderr!", .{});
+
     debug.print("Execution ended. Halting...\n", .{});
 
     while (true) {}

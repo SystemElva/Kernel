@@ -140,7 +140,8 @@ pub fn build(b: *std.Build) void {
     // general options
     qemu_args.appendSlice(&.{"-m", "2G"}) catch @panic("OOM");
 
-    qemu_args.appendSlice(&.{"-serial", "file:zig-out/com1.txt"}) catch @panic("OOM");
+    qemu_args.appendSlice(&.{"-serial", "file:zig-out/stdout.txt"}) catch @panic("OOM");
+    qemu_args.appendSlice(&.{"-serial", "file:zig-out/stderr.txt"}) catch @panic("OOM");
     qemu_args.appendSlice(&.{"-monitor", "mon:stdio"}) catch @panic("OOM");
     qemu_args.appendSlice(&.{"-display", "gtk,zoom-to-fit=on"}) catch @panic("OOM");
 

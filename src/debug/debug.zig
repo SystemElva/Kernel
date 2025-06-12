@@ -5,13 +5,20 @@ const builtin = @import("builtin");
 pub const serial = root.system.serial;
 const tty_config: std.io.tty.Config = .no_color;
 
+const stdout = 0;
+const stderr = 1;
+
 pub const StackTrace = struct {
 
 };
 
 pub inline fn print(fmt: []const u8, args: anytype) void {
-    serial.writer().print(fmt, args) catch |err| std.debug.panic("print error: {s}", .{@errorName(err)});
+    serial.writer(stdout).print(fmt, args) catch |e| std.debug.panic("print error: {s}", .{@errorName(e)});
 }
+pub inline fn err(fmt: []const u8, args: anytype) void {
+    serial.writer(stderr).print(fmt, args) catch |e| std.debug.panic("print error: {s}", .{@errorName(e)});
+}
+
 
 pub fn dumpStackTrace(ret_address: usize) void {
 
@@ -20,7 +27,7 @@ pub fn dumpStackTrace(ret_address: usize) void {
         return;
     }
 
-    const writer = serial.writer();
+    const writer = serial.writer(stderr);
 
     // I hate my life
     switch (root.system.arch) {
@@ -31,10 +38,10 @@ pub fn dumpStackTrace(ret_address: usize) void {
 
 
 pub fn dumpHex(bytes: []const u8) void {
-    dumpHexInternal(bytes, tty_config, serial.writer()) catch {};
+    dumpHexInternal(bytes, tty_config, serial.writer(stdout)) catch {};
 }
 pub fn dumpHexFailable(bytes: []const u8) void {
-    try dumpHexInternal(bytes, tty_config, serial.writer());
+    try dumpHexInternal(bytes, tty_config, serial.writer(stdout));
 }
 
 // Reimplementation of zig's `std.debug.dumpHexInternal`
