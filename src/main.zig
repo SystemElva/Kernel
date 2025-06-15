@@ -6,6 +6,7 @@ pub const boot = @import("boot/boot.zig");
 pub const system = @import("system/system.zig");
 pub const mem = @import("mem/mem.zig");
 pub const debug = @import("debug/debug.zig");
+pub const gl = @import("gl/gl.zig");
 
 pub const os = @import("os/os.zig");
 pub const std_options: std.Options = .{
@@ -36,9 +37,33 @@ pub fn main(_boot_info: BootInfo) noreturn {
     boot_info = _boot_info;
     system.assembly.flags.clear_interrupt();
 
+    // Setting up graphics
+    gl.init(
+        boot_info.framebuffer.framebuffer,
+        boot_info.framebuffer.width,
+        boot_info.framebuffer.height,
+        boot_info.framebuffer.pps
+    );
+
+    gl.clear();
+    gl.draw_char('H');
+    gl.draw_char('e');
+    gl.draw_char('l');
+    gl.draw_char('l');
+    gl.draw_char('o');
+    gl.draw_char(',');
+    gl.draw_char(' ');
+    gl.draw_char('W');
+    gl.draw_char('o');
+    gl.draw_char('r');
+    gl.draw_char('l');
+    gl.draw_char('d');
+    gl.draw_char('!');
+
+
     // Setupping system-dependant resources
     system.init() catch @panic("System could not be initialized!");
-    // Setupping interrupts
+    // Setting up interrupts
     @import("interrupts.zig").install_interrupts();
 
     // Printing hello world
@@ -121,14 +146,14 @@ pub inline fn get_boot_info() BootInfo {
 }
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, return_address: ?usize) noreturn {
-    debug.print("\n!!! KERNEL PANIC !!!\n", .{});
-    debug.print("Error: {s}\n\n", .{msg});
+    debug.err("\n!!! KERNEL PANIC !!!\n", .{});
+    debug.err("Error: {s}\n\n", .{msg});
 
     if (return_address) |ret| {
-        debug.print("Stack Trace:\n", .{});
+        debug.err("Stack Trace:\n", .{});
         debug.dumpStackTrace(ret);
     } else {
-        debug.print("No Stack Trace\n", .{});
+        debug.err("No Stack Trace\n", .{});
     }
 
     while (true) {}

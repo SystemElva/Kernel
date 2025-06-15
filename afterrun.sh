@@ -1,7 +1,7 @@
 #!/bin/bash
 
 BIN="./zig-out/disk/kernel"
-INPUT_LOG="./zig-out/com1.txt"
+INPUT_LOG="./zig-out/stderr.txt"
 VMA_BASE="0xFFFFFFFF80000000"
 
 TMP_FILE=$(mktemp)

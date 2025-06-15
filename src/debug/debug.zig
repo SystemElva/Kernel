@@ -8,12 +8,16 @@ const tty_config: std.io.tty.Config = .no_color;
 const stdout = 0;
 const stderr = 1;
 
-pub const StackTrace = struct {
-
-};
+const screen_width = 150;
+const screen_height = 45;
+var screen_buffer: [screen_width * screen_height]u8 = undefined;
+var screenx: usize = 0;
+var screeny: usize = 0;
 
 pub inline fn print(fmt: []const u8, args: anytype) void {
     serial.writer(stdout).print(fmt, args) catch |e| std.debug.panic("print error: {s}", .{@errorName(e)});
+    swriter().print(fmt, args) catch |e| std.debug.panic("draw error: {s}", .{@errorName(e)});
+    redraw_screen();
 }
 pub inline fn err(fmt: []const u8, args: anytype) void {
     serial.writer(stderr).print(fmt, args) catch |e| std.debug.panic("print error: {s}", .{@errorName(e)});
@@ -23,7 +27,7 @@ pub inline fn err(fmt: []const u8, args: anytype) void {
 pub fn dumpStackTrace(ret_address: usize) void {
 
     if (builtin.strip_debug_info) {
-        print("Unable to dump stack trace: debug info stripped\n", .{});
+        err("Unable to dump stack trace: debug info stripped\n", .{});
         return;
     }
 
@@ -84,5 +88,64 @@ fn dumpHexInternal(bytes: []const u8, ttyconf: std.io.tty.Config, writer: anytyp
         }
         
         try writer.writeByte('\n');
+    }
+}
+
+// Screen things
+pub const ScreenWriter = std.io.Writer(
+    *anyopaque,
+    error{},
+    screen_out
+);
+
+inline fn swriter() ScreenWriter {
+    return .{ .context = undefined };
+}
+fn screen_out(_: *anyopaque, bytes: []const u8) !usize {
+    
+    for (bytes) |e| {
+        if (e == '\n') {
+            screen_buffer[screenx + screeny * screen_width] = e;
+            screenx = 0;
+            screeny += 1;
+            if (screeny >= screen_height) push_lines_up();
+        }
+        else if (e == '\r') {
+            screen_buffer[screenx + screeny * screen_width] = e;
+            screenx = 0;
+        }
+        else {
+            screen_buffer[screenx + screeny * screen_width] = e;
+            screenx += 1;
+            if (screenx >= screen_width) {
+                screenx = 0;
+                screeny += 1;
+                if (screeny >= screen_height) push_lines_up();
+            }
+        }
+    }
+
+    return bytes.len;
+}
+fn push_lines_up() void {
+    for (0..screen_height-1) |i|
+        @memcpy(
+            screen_buffer[i * screen_width .. i * screen_width + screen_width],
+            screen_buffer[i * screen_width + screen_width .. i * screen_width + screen_width*2]
+        );
+    @memset(screen_buffer[(screen_height-1) * screen_width .. screen_height * screen_width], 0);
+    screeny -= 1;
+}
+fn redraw_screen() void {
+    const gl = root.gl;
+    gl.clear();
+
+    for (0..screen_height) |y| {
+        gl.set_cursor_pos(0, y);
+        for (0..screen_width) |x|{
+            const c = screen_buffer[x + y * screen_width];
+            if (c < 32) break;
+            gl.draw_char(c);
+        }
     }
 }
