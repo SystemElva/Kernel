@@ -5,6 +5,8 @@ const builtin = @import("builtin");
 pub const arch = builtin.cpu.arch;
 pub const endian = arch.endian();
 
+pub const Privilege = enum { kernel, user };
+
 // IO
 pub const serial = switch (arch) {
     .aarch64 => @import("aarchx64/serial.zig"),
@@ -22,6 +24,14 @@ pub const mem = .{
         //.x86 =>     @import("x86/asm.zig"),
         else => unreachable
     }
+};
+
+// Tasks and Theading
+pub const TaskContext = switch (arch) {
+    //.aarch64 => @import("aarchx64/asm.zig"),
+    .x86_64 => @import("x86_64/taskContext.zig"),
+    //.x86 =>     @import("x86/asm.zig"),
+    else => unreachable
 };
 
 // Assembly

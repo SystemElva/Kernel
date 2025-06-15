@@ -34,7 +34,7 @@ comptime { _ = @import("boot/limine/entry.zig"); }
 
 pub fn main(_boot_info: BootInfo) noreturn {
     boot_info = _boot_info;
-    //system.assembly.flags.clear_interrupt();
+    system.assembly.flags.clear_interrupt();
 
     // Setupping system-dependant resources
     system.init() catch @panic("System could not be initialized!");
@@ -42,6 +42,9 @@ pub fn main(_boot_info: BootInfo) noreturn {
     // Printing hello world
     debug.print("\nHello, World from {s}!\n", .{ @tagName(system.arch) });
  
+    // Trying to raise an interrupt
+    asm volatile ("int $0x00");
+
     // Testing kernel allocator
     const allocator = system.mem.vmm.allocator();
 
