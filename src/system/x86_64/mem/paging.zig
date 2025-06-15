@@ -58,7 +58,7 @@ pub fn commit_map() void {
     var cr3_val: Cr3Value = ctrl_regs.read(.cr3);
     cr3_val.set_phys_addr(pmm.physFromPtr(current_map.?));
     ctrl_regs.write(.cr3, cr3_val);
-    debug.print("Comitted page table at 0x{X} ({X})", .{cr3_val.get_phys_addr(), @as(usize, @truncate(pmm.physFromPtr(current_map.?) >> 12))});
+    debug.err("Comitted page table at 0x{X} ({X})\n", .{cr3_val.get_phys_addr(), @as(usize, @truncate(pmm.physFromPtr(current_map.?) >> 12))});
 }
 
 // Creates a new empty memory map
@@ -68,7 +68,7 @@ pub fn create_new_map() MapPtr {
 
     for (0 .. mmap.len) |i| mmap[i] = @bitCast(@as(usize, 0));
 
-    debug.print("Map created at address {X}\n", .{@intFromPtr(mmap)});
+    debug.err("Map created at address {X}\n", .{@intFromPtr(mmap)});
     current_map = mmap;
     return mmap;
 }
@@ -219,7 +219,7 @@ pub fn map_single_page(phys_base: usize, virt_base: usize, comptime size: usize,
 }
 pub fn map_range(phys_base: usize, virt_base: usize, length: usize, attributes: Attributes) MMapError!void {
 
-    debug.print("mapping range ${X}..${X} -> ${X}..${X} ({s}{s}{s}{s}{s}{s})\n",
+    debug.err("mapping range ${X}..${X} -> ${X}..${X} ({s}{s}{s}{s}{s}{s})\n",
     .{
         phys_base, phys_base + length,
         virt_base, virt_base + length,

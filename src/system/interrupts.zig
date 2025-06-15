@@ -22,15 +22,17 @@ const system_idt = switch (sys.arch) {
     else => unreachable
 };
 
+// Interrupt functions
 fn unhandled_interrupt(frame: *TaskContext) void {
     debug.err("\nUnhandled interrupt {0} (0x{0X:0>2})!\n", .{ frame.intnum });
     debug.err("{}\n", .{ frame });
 }
 
+
 pub fn interrupt_handler(int_frame: *TaskContext) void {
     int_frame.intnum &= 0xFF;
 
-    debug.print("Branching to interrupt {X:0>2}...", .{int_frame.intnum});
+    debug.print("Branching to interrupt {X:0>2}...\n", .{int_frame.intnum});
 
     debug.print("frame before:\n{}", .{int_frame});
 

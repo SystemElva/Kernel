@@ -38,6 +38,8 @@ pub fn main(_boot_info: BootInfo) noreturn {
 
     // Setupping system-dependant resources
     system.init() catch @panic("System could not be initialized!");
+    // Setupping interrupts
+    @import("interrupts.zig").install_interrupts();
 
     // Printing hello world
     debug.print("\nHello, World from {s}!\n", .{ @tagName(system.arch) });

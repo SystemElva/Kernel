@@ -56,7 +56,7 @@ pub fn setup() void {
     hhdm_offset = boot_info.hhdm_base_offset;
     const mmap = boot_info.memory_map;
 
-    debug.print("phys base: {X: >16}\nvirt base: {X: >16}\n\n", .{ boot_info.kernel_base_physical, boot_info.kernel_base_virtual });
+    debug.err("\nphys base: {X: >16}\nvirt base: {X: >16}\n\n", .{ boot_info.kernel_base_physical, boot_info.kernel_base_virtual });
 
     for (mmap) |i| {
 
@@ -70,7 +70,7 @@ pub fn setup() void {
             // cases but i prefer to ignore it
             if (i.base < 0x100000) continue;
 
-            debug.print("marking {X} .. {X} as free\n", .{ i.base, i.base + i.size});
+            debug.err("marking {X} .. {X} as free\n", .{ i.base, i.base + i.size});
 
             // Marking block as free
             blocks[next_free_block] = .{
@@ -85,7 +85,7 @@ pub fn setup() void {
             
         } else if (i.type == .framebuffer) {
             // I personally prefer have track of the framebuffer
-            debug.print("marking {X} .. {X} as framebuffer\n", .{ i.base, i.base + i.size});
+            debug.err("marking {X} .. {X} as framebuffer\n", .{ i.base, i.base + i.size});
 
             // Marking block as free
             blocks[next_free_block] = .{
@@ -102,7 +102,7 @@ pub fn setup() void {
             // Entry is not usable, but will be marked
             // as kernel
 
-            debug.print("marking {X} .. {X} as kernel\n", .{ i.base, i.base + i.size});
+            debug.err("marking {X} .. {X} as kernel\n", .{ i.base, i.base + i.size});
             blocks[next_free_block] = .{
                 .start = i.base / page_size,
                 .length = i.size / page_size,
@@ -116,7 +116,7 @@ pub fn setup() void {
             kernel_page_start = i.base / page_size;
             kernel_page_end = kernel_page_start + i.size / page_size;
         } else {
-            debug.print("skipping {X} .. {X} ({s})\n", .{ i.base, i.base + i.size, @tagName(i.type)});
+            debug.err("skipping {X} .. {X} ({s})\n", .{ i.base, i.base + i.size, @tagName(i.type)});
             continue;
         }
 
@@ -140,7 +140,7 @@ pub fn setup() void {
     const unit_float: f64 = @floatFromInt(units[i].size);
 
     debug.print("Total memory available: {d:.2} {s} ({} pages)\n", .{size_float / unit_float, units[i].name, total_memory_bytes / page_size});
-    debug.print("HHDM offset: {X}\n", .{hhdm_offset});
+    debug.err("HHDM offset: {X}\n", .{hhdm_offset});
 
     paging.enumerate_paging_features();
 
@@ -157,16 +157,16 @@ pub fn setup() void {
 
     // Creating identity map
     const idmap_len = std.math.shl(usize, 1, phys_mapping_range_bits);
-    debug.print("\nmapping range of {d} bits ({} pages, {s})\n", .{phys_mapping_range_bits, idmap_len, std.fmt.fmtIntSizeBin(idmap_len * 4096)});
+    debug.err("\nmapping range of {d} bits ({} pages, {s})\n", .{phys_mapping_range_bits, idmap_len, std.fmt.fmtIntSizeBin(idmap_len * 4096)});
     paging.map_range(0, hhdm_offset, idmap_len, atributes_ROX_privileged_fixed) catch unreachable;
 
     // Mapping kernel
-    debug.print("\nmapping kernel range {X} .. {X} to {X}\n", .{kernel_phys, kernel_phys + kernel_len, kernel_virt});
+    debug.err("\nmapping kernel range {X} .. {X} to {X}\n", .{kernel_phys, kernel_phys + kernel_len, kernel_virt});
     paging.map_range(kernel_phys, kernel_virt, kernel_len, atributes_ROX_privileged_fixed) catch unreachable;
     
     lsmemblocks();
 
-    debug.print("Commiting new map to CR3...\n", .{});
+    debug.err("Commiting new map to CR3...\n", .{});
     paging.commit_map();
     
     debug.print("\nOk theorically we are in our owm mem map now...\n", .{});
@@ -191,7 +191,6 @@ pub fn setup() void {
 
         idx += 1;
         cur_block = cur_block.?.next;
-        debug.print("{x}\n", .{@intFromPtr(cur_block)});
     }
     memory_blocks_buffer[idx - 1].next = null;
 
@@ -199,7 +198,7 @@ pub fn setup() void {
     memory_blocks_buffer[idx - 1].next = null;
 
     memory_blocks_root = &memory_blocks_buffer[0];
-    debug.print("Memory blocks final heap created\n", .{});
+    debug.err("Memory blocks final heap created\n", .{});
     lsmemblocks();
 }
 

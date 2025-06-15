@@ -25,6 +25,8 @@ pub const mem = .{
         else => unreachable
     }
 };
+// Interrupt management
+pub const interrupts = @import("interrupts.zig");
 
 // Tasks and Theading
 pub const TaskContext = switch (arch) {
