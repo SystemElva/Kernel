@@ -7,7 +7,18 @@ pub const endian = arch.endian();
 
 pub const Privilege = enum { kernel, user };
 
+// Zig interfaces related
+pub const std_options = switch(arch) {
+    .x86_64 => @import("x86_64/std_options.zig"),
+    else => unreachable
+};
+
 // IO
+pub const ports = switch (arch) {
+    .x86_64 => @import("x86_64/ports.zig"),
+    .aarch64 => @panic("IO ports not available for " ++ arch ++ "!"),
+    else => unreachable
+};
 pub const serial = switch (arch) {
     .aarch64 => @import("aarchx64/serial.zig"),
     .x86_64 =>  @import("x86_64/serial.zig"),
@@ -45,12 +56,15 @@ pub const assembly = switch (arch) {
 };
 
 
-pub const init = switch (arch) {
-    .aarch64 => @import("aarchx64/general.zig").init,
-    .x86_64 =>  @import("x86_64/general.zig").init,
-    .x86 =>     @import("x86/general.zig").init,
+const general = switch (arch) {
+    .aarch64 => @import("aarchx64/general.zig"),
+    .x86_64 =>  @import("x86_64/general.zig"),
+    .x86 =>     @import("x86/general.zig"),
     else => unreachable
 };
+
+pub const init = general.init;
+pub const finalize = general.finalize;
 
 
 /// Endian to host

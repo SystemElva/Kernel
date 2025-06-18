@@ -7,26 +7,10 @@ pub const system = @import("system/system.zig");
 pub const mem = @import("mem/mem.zig");
 pub const debug = @import("debug/debug.zig");
 pub const gl = @import("gl/gl.zig");
+pub const devices = @import("devices/devices.zig");
 
 pub const os = @import("os/os.zig");
-pub const std_options: std.Options = .{
-    .page_size_min = 4096,
-    .page_size_max = 4096,
-
-    .enable_segfault_handler = false,
-
-    .logFn = logFn,
-    .cryptoRandomSeed = criptoRandomSeed
-};
-fn logFn(comptime message_level: std.log.Level, comptime scope: @TypeOf(.enum_literal), comptime format: []const u8, args: anytype) void {
-    _ = message_level;
-    _ = scope;
-
-    debug.print(format, args);
-}
-fn criptoRandomSeed(buffer: []u8) void {
-    @memset(buffer, 0xC0);
-}
+pub const std_options = system.std_options.options;
 
 var boot_info: BootInfo = undefined;
 
@@ -44,22 +28,7 @@ pub fn main(_boot_info: BootInfo) noreturn {
         boot_info.framebuffer.height,
         boot_info.framebuffer.pps
     );
-
     gl.clear();
-    gl.draw_char('H');
-    gl.draw_char('e');
-    gl.draw_char('l');
-    gl.draw_char('l');
-    gl.draw_char('o');
-    gl.draw_char(',');
-    gl.draw_char(' ');
-    gl.draw_char('W');
-    gl.draw_char('o');
-    gl.draw_char('r');
-    gl.draw_char('l');
-    gl.draw_char('d');
-    gl.draw_char('!');
-
 
     // Setupping system-dependant resources
     system.init() catch @panic("System could not be initialized!");
@@ -69,73 +38,17 @@ pub fn main(_boot_info: BootInfo) noreturn {
     // Printing hello world
     debug.print("\nHello, World from {s}!\n", .{ @tagName(system.arch) });
  
-    // Trying to raise an interrupt
-    asm volatile ("int $0x00");
-
-    // Testing kernel allocator
-    const allocator = system.mem.vmm.allocator();
-
-    var heap = allocator.alloc(u32, 20) catch unreachable;
-    var b1: []u8 = undefined;
-    var b2: []u8 = undefined;
-    b1.ptr = @ptrFromInt(@intFromPtr(heap.ptr) - 32); b1.len = 32;
-    b2.ptr = @ptrFromInt(@intFromPtr(heap.ptr) + heap.len * @sizeOf(u32)); b2.len = 64;
-
-    debug.print("new_heap_____________________\n", .{});
-    debug.print("before:\n", .{});
-    debug.dumpHex(b1);
-
-    debug.print("data:\n", .{});
-    debug.dumpHex(std.mem.sliceAsBytes(heap));
-
-    debug.print("after:\n", .{});
-    debug.dumpHex(b2);
-    
-    debug.print("\n", .{});
-
-    @memset(heap, 0x74736554);
-    
-
-    debug.print("after_memset________________\n", .{});
-    debug.print("before:\n", .{});
-    debug.dumpHex(b1);
-
-    debug.print("data:\n", .{});
-    debug.dumpHex(std.mem.sliceAsBytes(heap));
-
-    debug.print("after:\n", .{});
-    debug.dumpHex(b2);
-    
-    debug.print("\n", .{});
+    // Initializing devices
+    devices.init() catch debug.print("Devices initialization failed!\n", .{});
 
     system.mem.vmm.lsmemblocks();
 
-    _ = allocator.resize(heap, 200);
-    heap = heap.ptr[0 .. 200];
-    b2.ptr =  @ptrFromInt(@intFromPtr(heap.ptr) + heap.len * @sizeOf(u32)); b2.len = 64;
+    devices.pci.lspci();
 
-    debug.print("after_resize_______________\n", .{});
-    debug.print("before:\n", .{});
-    debug.dumpHex(b1);
+    debug.print("\nSetup finished. Giving control to the scheduler...\n", .{});
+    system.finalize() catch @panic("System initialization could not be finalized!");
 
-    debug.print("data:\n", .{});
-    debug.dumpHex(std.mem.sliceAsBytes(heap));
-
-    debug.print("after:\n", .{});
-    debug.dumpHex(b2);
-    
-    debug.print("\n", .{});
-
-    system.mem.vmm.lsmemblocks();
-
-    allocator.free(heap);
-
-    system.mem.vmm.lsmemblocks();
-
-    // Testing Stderr
-    debug.err("Hello World from Stderr!", .{});
-
-    debug.print("Execution ended. Halting...\n", .{});
+    system.assembly.flags.set_interrupt();
 
     while (true) {}
     unreachable;
@@ -146,6 +59,8 @@ pub inline fn get_boot_info() BootInfo {
 }
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, return_address: ?usize) noreturn {
+
+    debug.print("\n!!! KERNEL PANIC (see stderr) !!!\n", .{});
     debug.err("\n!!! KERNEL PANIC !!!\n", .{});
     debug.err("Error: {s}\n\n", .{msg});
 

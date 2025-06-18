@@ -6,7 +6,11 @@ const Alignment = mem.Allignment;
 
 const debug = root.debug.serial.writer();
 
+pub fn kernel_allocator() Allocator {
+    return root.system.mem.vmm.get_kernel_allocator();
+}
 
+// TODO Page allocator
 pub const page_allocator: Allocator = .{
     .ptr = undefined,
     .vtable = &PageAllocator.page_allocator_vtable

@@ -23,9 +23,7 @@ pub inline fn err(fmt: []const u8, args: anytype) void {
     serial.writer(stderr).print(fmt, args) catch |e| std.debug.panic("print error: {s}", .{@errorName(e)});
 }
 
-
 pub fn dumpStackTrace(ret_address: usize) void {
-
     if (builtin.strip_debug_info) {
         err("Unable to dump stack trace: debug info stripped\n", .{});
         return;
@@ -36,10 +34,9 @@ pub fn dumpStackTrace(ret_address: usize) void {
     // I hate my life
     switch (root.system.arch) {
         .x86_64 => @import("../system/x86_64/debug/stackTrace.zig").dumpStackTrace(ret_address, writer),
-        else => unreachable
+        else => unreachable,
     }
 }
-
 
 pub fn dumpHex(bytes: []const u8) void {
     dumpHexInternal(bytes, tty_config, serial.writer(stdout)) catch {};
@@ -53,7 +50,7 @@ fn dumpHexInternal(bytes: []const u8, ttyconf: std.io.tty.Config, writer: anytyp
     var chunks = std.mem.window(u8, bytes, 16, 16);
     while (chunks.next()) |window| {
         const address = (@intFromPtr(bytes.ptr) + 0x10 * (std.math.divCeil(usize, chunks.index orelse bytes.len, 16) catch unreachable)) - 0x10;
-        
+
         try ttyconf.setColor(writer, .dim);
         try writer.print("{x:0>[1]}  ", .{ address, @sizeOf(usize) * 2 });
         try ttyconf.setColor(writer, .reset);
@@ -70,8 +67,7 @@ fn dumpHexInternal(bytes: []const u8, ttyconf: std.io.tty.Config, writer: anytyp
         }
 
         for (window) |byte| {
-            if (std.ascii.isPrint(byte)) try writer.writeByte(byte)
-            else { // Not printable char
+            if (std.ascii.isPrint(byte)) try writer.writeByte(byte) else { // Not printable char
 
                 if (ttyconf == .windows_api) {
                     try writer.writeByte('.');
@@ -86,35 +82,26 @@ fn dumpHexInternal(bytes: []const u8, ttyconf: std.io.tty.Config, writer: anytyp
                 }
             }
         }
-        
+
         try writer.writeByte('\n');
     }
 }
 
 // Screen things
-pub const ScreenWriter = std.io.Writer(
-    *anyopaque,
-    error{},
-    screen_out
-);
+pub const ScreenWriter = std.io.Writer(*anyopaque, error{}, screen_out);
 
 inline fn swriter() ScreenWriter {
     return .{ .context = undefined };
 }
 fn screen_out(_: *anyopaque, bytes: []const u8) !usize {
-    
     for (bytes) |e| {
         if (e == '\n') {
-            screen_buffer[screenx + screeny * screen_width] = e;
             screenx = 0;
             screeny += 1;
             if (screeny >= screen_height) push_lines_up();
-        }
-        else if (e == '\r') {
-            screen_buffer[screenx + screeny * screen_width] = e;
+        } else if (e == '\r') {
             screenx = 0;
-        }
-        else {
+        } else {
             screen_buffer[screenx + screeny * screen_width] = e;
             screenx += 1;
             if (screenx >= screen_width) {
@@ -128,24 +115,23 @@ fn screen_out(_: *anyopaque, bytes: []const u8) !usize {
     return bytes.len;
 }
 fn push_lines_up() void {
-    for (0..screen_height-1) |i|
-        @memcpy(
-            screen_buffer[i * screen_width .. i * screen_width + screen_width],
-            screen_buffer[i * screen_width + screen_width .. i * screen_width + screen_width*2]
-        );
-    @memset(screen_buffer[(screen_height-1) * screen_width .. screen_height * screen_width], 0);
+    for (0..screen_height - 1) |i|
+        @memcpy(screen_buffer[i * screen_width .. i * screen_width + screen_width], screen_buffer[i * screen_width + screen_width .. i * screen_width + screen_width * 2]);
+    @memset(screen_buffer[(screen_height - 1) * screen_width .. screen_height * screen_width], 0);
     screeny -= 1;
 }
 fn redraw_screen() void {
     const gl = root.gl;
-    gl.clear();
 
     for (0..screen_height) |y| {
         gl.set_cursor_pos(0, y);
-        for (0..screen_width) |x|{
+
+        var x: usize = 0;
+        while (x < screen_width) : (x += 1) {
             const c = screen_buffer[x + y * screen_width];
-            if (c < 32) break;
+            if (c == 0) break;
             gl.draw_char(c);
         }
+        while (x < screen_width) : (x += 1) gl.draw_char(' ');
     }
 }

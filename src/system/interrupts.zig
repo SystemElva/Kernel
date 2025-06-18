@@ -33,12 +33,7 @@ pub fn interrupt_handler(int_frame: *TaskContext) void {
     int_frame.intnum &= 0xFF;
 
     debug.print("Branching to interrupt {X:0>2}...\n", .{int_frame.intnum});
-
-    debug.print("frame before:\n{}", .{int_frame});
-
     interrupts[int_frame.intnum](int_frame);
-
-    debug.print("frame after:\n{}", .{int_frame});
 }
 
 // Allocates a not used interrupt and returns it number

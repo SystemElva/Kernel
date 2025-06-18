@@ -15,8 +15,8 @@ pub fn install_interrupts() void {
     interrupts.set_vector(0x5, &bound_range_exceeded, .kernel);
     interrupts.set_vector(0x6, &invalid_opcode, .kernel);
 
-    interrupts.set_vector(0x13, &general_protection_fault, .kernel);
-    interrupts.set_vector(0x14, &page_fault, .kernel);
+    interrupts.set_vector(0x0d, &general_protection_fault, .kernel);
+    interrupts.set_vector(0x0e, &page_fault, .kernel);
 
 }
 
@@ -89,6 +89,7 @@ fn general_protection_fault(frame: *TaskContext) void {
     debug.err("(#GP) Dumping frame:\n", .{});
     debug.err("{}\n", .{ frame });
 
+    while (true) {}
 }
 fn page_fault(frame: *TaskContext) void {
 
@@ -123,6 +124,7 @@ fn page_fault(frame: *TaskContext) void {
     debug.err("(#PF) Dumping frame:\n", .{});
     debug.err("{}\n", .{ frame });
 
+    while (true) {}
 }
 
 

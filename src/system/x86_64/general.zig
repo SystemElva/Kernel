@@ -3,6 +3,7 @@ const gdt = @import("globalDescriptorTable.zig");
 const idt = @import("interruptDescriptorTable.zig");
 const pmm = @import("mem/pmm.zig");
 const vmm = @import("mem/vmm.zig");
+const pic = @import("pic.zig");
 
 const root = @import("root");
 const debug = root.debug;
@@ -17,8 +18,16 @@ pub fn init() !void {
     debug.err("Installing IDT...\n", .{});
     idt.install();
 
-    debug.err("Things done time to memory shit\n", .{});
+    debug.err("Setting up Physical Memory Management...\n", .{});
     pmm.setup();
+    debug.err("Setting up Virtual Memory Management...\n", .{});
     vmm.init();
     
+}
+
+pub fn finalize() !void {
+    
+    debug.err("Setting up Programable Interrupt Controller...\n", .{});
+    pic.setup();
+
 }
