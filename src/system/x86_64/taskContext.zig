@@ -2,8 +2,10 @@ const std = @import("std");
 const gdt = @import("globalDescriptorTable.zig");
 const idt = @import("interruptDescriptorTable.zig");
 
+cr2: u64,
 es: u64,
 ds: u64,
+
 r15: u64,
 r14: u64,
 r13: u64,
@@ -20,6 +22,8 @@ rcx: u64,
 rbx: u64,
 rax: u64,
 intnum: u64,
+
+// Fetched by the cpu
 error_code: u64,
 rip: u64,
 cs: u64,
@@ -71,6 +75,8 @@ pub fn format(self: *const @This(), comptime _: []const u8, _: std.fmt.FormatOpt
     
     try fmt.print("GDT=     {X:0>16} {X:0>8}\n", .{ gdt.get_ptr().base, gdt.get_ptr().limit });
     try fmt.print("ITD=     {X:0>16} {X:0>8}\n", .{ idt.get_ptr().base, idt.get_ptr().limit });
+
+    try fmt.print("CR2={x:0>16}\n", .{ self.cr2 });
 
 }
 

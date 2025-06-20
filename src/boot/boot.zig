@@ -6,6 +6,8 @@ pub const BootInfo = struct {
     kernel_base_physical: usize,
 
     hhdm_base_offset: usize,
+
+    rsdp_physical: usize,
 };
 
 pub const Framebuffer = struct {

@@ -26,7 +26,7 @@ pub const serial = switch (arch) {
     else => unreachable
 };
 
-// Memory Management
+/// Memory and pagination management
 pub const mem = .{
     .paging = @import("paging.zig"),
     .vmm = switch (arch) {
@@ -36,10 +36,10 @@ pub const mem = .{
         else => unreachable
     }
 };
-// Interrupt management
+/// Interrupt management
 pub const interrupts = @import("interrupts.zig");
 
-// Tasks and Theading
+/// Tasks and Theading
 pub const TaskContext = switch (arch) {
     //.aarch64 => @import("aarchx64/asm.zig"),
     .x86_64 => @import("x86_64/taskContext.zig"),
@@ -47,7 +47,10 @@ pub const TaskContext = switch (arch) {
     else => unreachable
 };
 
-// Assembly
+/// Timing and timestamps
+pub const time = @import("time.zig");
+
+// Misc
 pub const assembly = switch (arch) {
     //.aarch64 => @import("aarchx64/asm.zig"),
     .x86_64 =>  @import("x86_64/asm/asm.zig"),
@@ -56,6 +59,8 @@ pub const assembly = switch (arch) {
 };
 
 
+/// Specific system initialization routines
+/// for each archtecture
 const general = switch (arch) {
     .aarch64 => @import("aarchx64/general.zig"),
     .x86_64 =>  @import("x86_64/general.zig"),

@@ -1,15 +1,28 @@
 const std = @import("std");
 const BootInfo = boot.BootInfo;
 
-// root public
+/// Boot information structures
 pub const boot = @import("boot/boot.zig");
+/// System-dependent implementations and core subroutines
 pub const system = @import("system/system.zig");
+/// Memory and Memory-management related
 pub const mem = @import("mem/mem.zig");
+/// Tools for debugguing and simple I/O
 pub const debug = @import("debug/debug.zig");
+/// Simple CPU-based graphics library
 pub const gl = @import("gl/gl.zig");
+/// Devices management
 pub const devices = @import("devices/devices.zig");
+/// Users, authentication and permissions
+pub const auth = @import("auth/auth.zig");
+/// Processes, tasks and execution
+pub const threading = @import("threading/threading.zig");
 
+/// Field that allow zig interfaces to comunicate
+/// with the kernel. Do not mind.
 pub const os = @import("os/os.zig");
+/// Field that allow zig interfaces to comunicate
+/// with the kernel. Do not mind.
 pub const std_options = system.std_options.options;
 
 var boot_info: BootInfo = undefined;
@@ -41,19 +54,26 @@ pub fn main(_boot_info: BootInfo) noreturn {
     // Initializing devices
     devices.init() catch debug.print("Devices initialization failed!\n", .{});
 
-    system.mem.vmm.lsmemblocks();
+    // Initializing OS-specific things
+    auth.init();
+    system.time.init();
 
+    debug.print("\nDumping random data to see if everything is right:\n", .{});
+
+    debug.print("Time: {} ({})\n", .{ system.time.get_datetime(), system.time.timestamp() });
+    //system.mem.vmm.lsmemblocks();
     devices.pci.lspci();
+    auth.lsusers();
 
     debug.print("\nSetup finished. Giving control to the scheduler...\n", .{});
     system.finalize() catch @panic("System initialization could not be finalized!");
 
-    system.assembly.flags.set_interrupt();
-
-    while (true) {}
+    while (true) system.assembly.flags.set_interrupt();
     unreachable;
 }
 
+/// Returns a copy of information from the
+/// bootloader
 pub inline fn get_boot_info() BootInfo {
     return boot_info;
 }

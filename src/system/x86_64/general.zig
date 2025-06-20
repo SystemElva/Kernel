@@ -4,6 +4,7 @@ const idt = @import("interruptDescriptorTable.zig");
 const pmm = @import("mem/pmm.zig");
 const vmm = @import("mem/vmm.zig");
 const pic = @import("pic.zig");
+const ports = @import("ports.zig");
 
 const root = @import("root");
 const debug = root.debug;
@@ -30,4 +31,16 @@ pub fn finalize() !void {
     debug.err("Setting up Programable Interrupt Controller...\n", .{});
     pic.setup();
 
+    debug.err("Setting up Programable Interval Timer...\n", .{});
+    setup_timer_interval();
+
+}
+
+fn setup_timer_interval()  void {
+    const frquency = 1000; // ms
+    const divisor: u16 = 1_193_182 / frquency;
+
+    ports.outb(0x43, 0x36);
+    ports.outb(0x40, @intCast(divisor & 0xFF));
+    ports.outb(0x40, @intCast((divisor >> 8) & 0xFF));
 }

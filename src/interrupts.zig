@@ -121,7 +121,7 @@ fn page_fault(frame: *TaskContext) void {
         else => unreachable
     }
     
-    debug.err("(#PF) Dumping frame:\n", .{});
+    debug.err("\n(#PF) Dumping frame:\n", .{});
     debug.err("{}\n", .{ frame });
 
     while (true) {}

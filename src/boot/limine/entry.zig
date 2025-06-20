@@ -9,6 +9,7 @@ pub export var framebuffer_request: limine.FramebufferRequest = .{};
 pub export var memory_map_request: limine.MemoryMapRequest = .{};
 pub export var kernel_addr_request: limine.KernelAddressRequest = .{};
 pub export var hhdm_request: limine.HhdmRequest = .{};
+pub export var rsdp_request: limine.RsdpRequest = .{};
 
 pub export fn __boot_entry__() callconv(.C) noreturn {
     
@@ -19,6 +20,7 @@ pub export fn __boot_entry__() callconv(.C) noreturn {
     if (memory_map_request.response == null) done();
     if (kernel_addr_request.response == null) done();
     if (hhdm_request.response == null) done();
+    if (rsdp_request.response == null) done();
 
     const fbuffer = framebuffer_request.response.?.framebuffers_ptr[0];
     const fbuffer_size = fbuffer.pitch * fbuffer.height;
@@ -26,11 +28,13 @@ pub export fn __boot_entry__() callconv(.C) noreturn {
     const mmap = memory_map_request.response.?;
     const addr = kernel_addr_request.response.?;
     const hhdm = hhdm_request.response.?;
+    const rsdp = rsdp_request.response.?;
 
     const boot_info: boot.BootInfo = .{
         .kernel_base_physical = addr.physical_base,
         .kernel_base_virtual = addr.virtual_base,
         .hhdm_base_offset = hhdm.offset,
+        .rsdp_physical = @intFromPtr(rsdp.address),
 
         .framebuffer = .{
             .framebuffer = fbuffer.address[0 .. fbuffer_size],

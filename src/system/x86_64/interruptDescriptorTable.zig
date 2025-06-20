@@ -2,6 +2,7 @@ const root = @import("root");
 const sys = root.system;
 const gdt = @import("globalDescriptorTable.zig");
 const TaskContext = @import("taskContext.zig");
+const ports = @import("ports.zig");
 
 const debug = root.debug;
 
@@ -121,6 +122,9 @@ export fn interrupt_common() callconv(.Naked) void {
         \\push %%rax
         \\mov %%es, %%rax
         \\push %%rax
+        \\mov %%cr2, %%rax
+        \\push %%rax
+        \\
         \\mov %%rsp, %%rdi
         \\mov %[dsel], %%ax
         \\mov %%ax, %%es
@@ -128,6 +132,7 @@ export fn interrupt_common() callconv(.Naked) void {
         \\ 
         \\call interrupt_handler
         \\
+        \\pop %%rax
         \\pop %%rax
         \\mov %%rax, %%es
         \\pop %%rax
@@ -157,4 +162,5 @@ export fn interrupt_common() callconv(.Naked) void {
 export fn interrupt_handler(fptr: u64) void {
     const int_frame: *TaskContext = @ptrFromInt(fptr);
     @import("../interrupts.zig").interrupt_handler(int_frame);
+    ports.outb(0x20, 0x20);
 }
