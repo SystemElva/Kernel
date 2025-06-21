@@ -10,20 +10,20 @@ pub const Date = struct {
     year: u32,
 
     pub fn format(s: *const @This(), comptime _: []const u8, _: std.fmt.FormatOptions, fmt: anytype) !void {
-        fmt.write("{:0>4} - {:0>2} - {:0>2}", .{
+        fmt.write("{:0>4}-{:0>2}-{:0>2}", .{
             s.year, s.month, s.day
         });
     }
 };
 
 pub const Time = struct {
-    secconds: u8,
+    seconds: u8,
     minutes: u8,
     hours: u8,
 
     pub fn format(s: *const @This(), comptime _: []const u8, _: std.fmt.FormatOptions, fmt: anytype) !void {
         fmt.write("{:0>2}:{:0>2}:{:0>2}", .{
-            s.hours, s.minutes, s.secconds,
+            s.hours, s.minutes, s.seconds,
         });
     }
 };
@@ -35,7 +35,7 @@ pub const DateTime = struct {
     year: u32,
 
     // Time
-    secconds: u8,
+    seconds: u8,
     minutes: u8,
     hours: u8,
 
@@ -49,15 +49,76 @@ pub const DateTime = struct {
 
     pub fn get_time(s: @This()) Time {
         return .{
-            .secconds = s.secconds,
+            .seconds = s.seconds,
             .minutes = s.minutes,
             .hours = s.hours
         };
     }
 
+    pub fn from_timestamp(ts: u64) DateTime {
+        const spm = 60;
+        const sph = 60 * spm;
+        const spd = 24 * sph;
+
+        var seconds = ts;
+
+        const days_since_epoch = seconds / spd;
+        seconds %= spd;
+
+        const hour: u8 = @intCast(seconds / sph);
+        seconds %= sph;
+
+        const minute: u8 = @intCast(seconds / spm);
+        const second: u8 = @intCast(seconds % spm);
+
+        const date = epochDaysToDate(days_since_epoch);
+
+        return DateTime{
+            .year = date.year,
+            .month = date.month,
+            .day = date.day,
+            .hours = hour,
+            .minutes = minute,
+            .seconds = second,
+        };
+    }
+    fn epochDaysToDate(days: u64) struct { year: u32, month: u8, day: u8 } {
+        var year: u32 = 1970;
+        var _days: u64 = days;
+
+        while (true) {
+            const days_in_year: usize = if (isLeapYear(year)) 366 else 365;
+            if (_days < days_in_year) break;
+            _days -= days_in_year;
+            year += 1;
+        }
+
+        const days_in_month = [_]u8{
+            31, if (isLeapYear(year)) 29 else 28, 31, 30, 31, 30,
+            31, 31, 30, 31, 30, 31
+        };
+
+        var month: u8 = 1;
+        for (days_in_month, 0..) |dim, i| {
+            if (_days < dim) {
+                month = @intCast(i + 1);
+                break;
+            }
+            _days -= dim;
+        }
+
+        const day: u8 = @intCast(_days + 1);
+
+        return .{ .year = year, .month = month, .day = day };
+    }
+    fn isLeapYear(year: u32) bool {
+        return (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0);
+    }
+
+
     pub fn format(s: *const @This(), comptime _: []const u8, _: std.fmt.FormatOptions, fmt: anytype) !void {
-        try fmt.print("{:0>2}:{:0>2}:{:0>2} {:0>4} - {:0>2} - {:0>2}", .{
-            s.hours, s.minutes, s.secconds,
+        try fmt.print("{:0>2}:{:0>2}:{:0>2} {:0>4}-{:0>2}-{:0>2}", .{
+            s.hours, s.minutes, s.seconds,
             s.year, s.month, s.day
         });
     }
@@ -86,9 +147,14 @@ pub fn init() void {
     sys.interrupts.set_vector(0x20, timer_int, .kernel);
 }
 
-fn timer_int(_: *sys.TaskContext) void {
+fn timer_int(f: *sys.TaskContext) void {
 
     elapsed_ticks += 1;
-    debug.print("tick! {}\n", .{elapsed_ticks});
+    
+    // Check if timer conditions are reached
+    // and execute
+
+    if (elapsed_ticks % 3 == 0)
+        root.threading.scheduler.do_schedule(f);
 
 }

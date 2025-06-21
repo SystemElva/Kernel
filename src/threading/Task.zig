@@ -7,8 +7,19 @@
 
 const std = @import("std");
 const root = @import("root");
+const threading = root.threading;
 
-tid: u32,
+task_id: u32,
+priority: u8,
+state: TaskState,
 context: root.system.TaskContext,
+process: *threading.Process,
+creation_timestamp: u64,
 
 
+pub const TaskState = enum(u8) {
+    Running,
+    Ready,
+    Waiting,
+    Terminated,
+};

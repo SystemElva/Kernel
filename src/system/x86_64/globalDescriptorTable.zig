@@ -2,12 +2,12 @@ const std = @import("std");
 
 pub var tables: [5 + 2]Entry = undefined;
 pub const selector = .{
-    .null = @as(u16, 0x00),
-    .code64 = @as(u16, 0x08),
-    .data64 = @as(u16, 0x10),
-    .usercode64 = @as(u16, 0x18),
-    .userdata64 = @as(u16, 0x20),
-    .tss = @as(u16, 0x28),
+    .null =       @as(u16, 0 << 3),
+    .code64 =     @as(u16, 1 << 3),
+    .data64 =     @as(u16, 2 << 3),
+    .usercode64 = @as(u16, 3 << 3 | 3),
+    .userdata64 = @as(u16, 4 << 2 | 3),
+    .tss =        @as(u16, 5 << 3),
 };
 var current_ptr: Pointer = undefined;
 

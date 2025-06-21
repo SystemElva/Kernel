@@ -1,6 +1,7 @@
 const std = @import("std");
 const root = @import("root");
 const sys = root.system;
+const allocator = root.mem.heap.kernel_allocator;
 
 const debug = root.debug;
 
@@ -14,7 +15,6 @@ pub const internal = switch (sys.arch) {
 const Addr = internal.Addr;
 pub const DeviceList = std.ArrayList(PciDevice);
 
-var allocator: std.mem.Allocator = undefined;
 var devList: DeviceList = undefined;
 
 pub const PciDevice = struct {
@@ -34,7 +34,6 @@ pub const PciDevice = struct {
 
 pub fn init() void {
     // Initializing device list
-    allocator = root.mem.heap.kernel_allocator();
     devList = DeviceList.init(allocator);
 }
 

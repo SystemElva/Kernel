@@ -4,11 +4,12 @@ const mem = root.mem;
 const Allocator = mem.Allocator;
 const Alignment = mem.Allignment;
 
-const debug = root.debug.serial.writer();
+const debug = root.debug;
 
-pub fn kernel_allocator() Allocator {
-    return root.system.mem.vmm.get_kernel_allocator();
-}
+pub const kernel_allocator : Allocator = .{
+    .ptr = &root.system.mem.vmm.kernel_allocator,
+    .vtable = &root.system.mem.vmm.KernelAlloc.vtable
+};
 
 // TODO Page allocator
 pub const page_allocator: Allocator = .{
@@ -25,7 +26,7 @@ const PageAllocator = struct {
     };
 
     fn page_allocator_alloc(_: *anyopaque, len: usize, alignment: Alignment, _: usize) ?[*]u8 {
-        debug.print("allocation of len {}, align {} requested\n", .{len, @intFromEnum(alignment)}) catch unreachable;
+        debug.err("allocation of len {}, align {} requested\n", .{len, @intFromEnum(alignment)});
 
         if (len >= std.math.maxInt(usize) - root.mem.pmm.page_size) return null;
         const alignment_bytes = alignment.toByteUnits();
@@ -35,19 +36,19 @@ const PageAllocator = struct {
         const overalloc_len = if (max_drop_len <= aligned_len - mem.pmm.page_size) aligned_len
             else std.mem.alignForward(usize, aligned_len + max_drop_len, mem.pmm.page_size);
 
-        debug.print("requesting {} bytes\n", .{overalloc_len}) catch unreachable;
+        debug.err("requesting {} bytes\n", .{overalloc_len});
 
         return null;
     }
     fn page_allocator_resize(_: *anyopaque, memory: []u8, alignment: Alignment, new_len: usize, _: usize) bool {
-        debug.print("resize of address {X} to len {}, align {} requested\n", .{@intFromPtr(memory.ptr), new_len, @intFromEnum(alignment)}) catch unreachable;
+        debug.err("resize of address {X} to len {}, align {} requested\n", .{@intFromPtr(memory.ptr), new_len, @intFromEnum(alignment)});
         return false;
     }
     fn page_allocator_remap(_: *anyopaque, memory: []u8, alignment: Alignment, new_len: usize, _: usize) ?[*]u8 {
-        debug.print("remap of address {X} to len {}, align {} requested\n", .{@intFromPtr(memory.ptr), new_len, @intFromEnum(alignment)}) catch unreachable;
+        debug.err("remap of address {X} to len {}, align {} requested\n", .{@intFromPtr(memory.ptr), new_len, @intFromEnum(alignment)});
         return null;
     }
     fn page_allocator_free(_: *anyopaque, memory: []u8, alignment: Alignment, _: usize) void {
-        debug.print("free of address {X}, align {} requested\n", .{@intFromPtr(memory.ptr), @intFromEnum(alignment)}) catch unreachable;
+        debug.err("free of address {X}, align {} requested\n", .{@intFromPtr(memory.ptr), @intFromEnum(alignment)});
     }
 };

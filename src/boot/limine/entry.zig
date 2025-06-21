@@ -29,10 +29,15 @@ pub export fn __boot_entry__() callconv(.C) noreturn {
     const addr = kernel_addr_request.response.?;
     const hhdm = hhdm_request.response.?;
     const rsdp = rsdp_request.response.?;
+    var stbp: usize = undefined;
+
+    asm volatile ("mov %%rsp, %[out]" : [out] "=r" (stbp) ::);
+    
 
     const boot_info: boot.BootInfo = .{
         .kernel_base_physical = addr.physical_base,
         .kernel_base_virtual = addr.virtual_base,
+        .kernel_stack_pointer_base = stbp,
         .hhdm_base_offset = hhdm.offset,
         .rsdp_physical = @intFromPtr(rsdp.address),
 

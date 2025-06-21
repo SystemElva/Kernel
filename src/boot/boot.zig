@@ -2,6 +2,7 @@ pub const BootInfo = struct {
     framebuffer: Framebuffer,
     memory_map: []*MemoryMapEntry,
 
+    kernel_stack_pointer_base: usize,
     kernel_base_virtual: usize,
     kernel_base_physical: usize,
 

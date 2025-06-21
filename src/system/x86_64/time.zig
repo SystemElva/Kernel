@@ -35,7 +35,7 @@ pub fn get_datetime() global.DateTime {
         .day = datetime.day,
         .month = datetime.month,
         .year = datetime.year,
-        .secconds = datetime.sec,
+        .seconds = datetime.sec,
         .minutes = datetime.min,
         .hours = datetime.hour
     };

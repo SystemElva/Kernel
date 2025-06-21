@@ -1,7 +1,7 @@
 const root = @import("root");
 const sys = root.system;
 const gdt = @import("globalDescriptorTable.zig");
-const TaskContext = @import("taskContext.zig");
+const TaskContext = @import("taskContext.zig").TaskContext;
 const ports = @import("ports.zig");
 
 const debug = root.debug;

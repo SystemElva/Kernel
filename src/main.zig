@@ -17,6 +17,8 @@ pub const devices = @import("devices/devices.zig");
 pub const auth = @import("auth/auth.zig");
 /// Processes, tasks and execution
 pub const threading = @import("threading/threading.zig");
+/// Utils and help scripts
+pub const utils = @import("utils/utils.zig");
 
 /// Field that allow zig interfaces to comunicate
 /// with the kernel. Do not mind.
@@ -44,7 +46,8 @@ pub fn main(_boot_info: BootInfo) noreturn {
     gl.clear();
 
     // Setupping system-dependant resources
-    system.init() catch @panic("System could not be initialized!");
+    system.init() catch {
+        @panic("System could not be initialized!"); };
     // Setting up interrupts
     @import("interrupts.zig").install_interrupts();
 
@@ -52,18 +55,38 @@ pub fn main(_boot_info: BootInfo) noreturn {
     debug.print("\nHello, World from {s}!\n", .{ @tagName(system.arch) });
  
     // Initializing devices
-    devices.init() catch debug.print("Devices initialization failed!\n", .{});
+    debug.err("# Initializing devices\n", .{});
+    devices.init() catch {
+        debug.print("Devices initialization failed!\n", .{}); };
 
     // Initializing OS-specific things
-    auth.init();
+    auth.init();            
+    threading.init();
     system.time.init();
 
+    // Setting up Adam
+    const system_proc = threading.procman.get_process_from_pid(0).?;
+    _ = system_proc.create_task(
+        @import("sysprocs/adam.zig")._start,
+        @ptrFromInt(boot_info.kernel_stack_pointer_base),
+        255
+    ) catch unreachable;
+
+    // Everything is ready, debug routine and them
+    // start the scheduler
     debug.print("\nDumping random data to see if everything is right:\n", .{});
 
     debug.print("Time: {} ({})\n", .{ system.time.get_datetime(), system.time.timestamp() });
+    debug.print("\n", .{});
     //system.mem.vmm.lsmemblocks();
     devices.pci.lspci();
+    debug.print("\n", .{});
     auth.lsusers();
+    debug.print("\n", .{});
+    threading.procman.lsproc();
+    debug.print("\n", .{});
+    threading.procman.lstasks();
+    debug.print("\n", .{});
 
     debug.print("\nSetup finished. Giving control to the scheduler...\n", .{});
     system.finalize() catch @panic("System initialization could not be finalized!");
@@ -80,16 +103,15 @@ pub inline fn get_boot_info() BootInfo {
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, return_address: ?usize) noreturn {
 
-    debug.print("\n!!! KERNEL PANIC (see stderr) !!!\n", .{});
-    debug.err("\n!!! KERNEL PANIC !!!\n", .{});
-    debug.err("Error: {s}\n\n", .{msg});
+    debug.print("\n!!! KERNEL PANIC !!!\n", .{});
+    debug.print("Error: {s}\n\n", .{msg});
 
     if (return_address) |ret| {
-        debug.err("Stack Trace:\n", .{});
+        debug.print("Stack Trace:\n", .{});
         debug.dumpStackTrace(ret);
     } else {
-        debug.err("No Stack Trace\n", .{});
+        debug.print("No Stack Trace\n", .{});
     }
 
-    while (true) {}
+    system.assembly.halt();
 }

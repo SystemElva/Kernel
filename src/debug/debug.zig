@@ -14,12 +14,12 @@ var screen_buffer: [screen_width * screen_height]u8 = undefined;
 var screenx: usize = 0;
 var screeny: usize = 0;
 
-pub inline fn print(fmt: []const u8, args: anytype) void {
+pub inline fn print(comptime fmt: []const u8, args: anytype) void {
     serial.writer(stdout).print(fmt, args) catch |e| std.debug.panic("print error: {s}", .{@errorName(e)});
     swriter().print(fmt, args) catch |e| std.debug.panic("draw error: {s}", .{@errorName(e)});
     redraw_screen();
 }
-pub inline fn err(fmt: []const u8, args: anytype) void {
+pub inline fn err(comptime fmt: []const u8, args: anytype) void {
     serial.writer(stderr).print(fmt, args) catch |e| std.debug.panic("print error: {s}", .{@errorName(e)});
 }
 

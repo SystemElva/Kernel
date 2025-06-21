@@ -42,9 +42,16 @@ pub const interrupts = @import("interrupts.zig");
 /// Tasks and Theading
 pub const TaskContext = switch (arch) {
     //.aarch64 => @import("aarchx64/asm.zig"),
-    .x86_64 => @import("x86_64/taskContext.zig"),
+    .x86_64 => @import("x86_64/taskContext.zig").TaskContext,
     //.x86 =>     @import("x86/asm.zig"),
     else => unreachable
+};
+pub const TaskGeneralFlags = struct {
+    carry: bool,
+    zero: bool,
+    sign: bool,
+    overflow: bool,
+    interrupt: bool
 };
 
 /// Timing and timestamps
@@ -59,7 +66,7 @@ pub const assembly = switch (arch) {
 };
 
 
-/// Specific system initialization routines
+/// Specific system routines
 /// for each archtecture
 const general = switch (arch) {
     .aarch64 => @import("aarchx64/general.zig"),
@@ -72,7 +79,7 @@ pub const init = general.init;
 pub const finalize = general.finalize;
 
 
-/// Endian to host
+/// Endian to host \
 /// Forcefully converts the endianness of the integer value given if diferent of the
 /// host endianness.
 pub inline fn en2h(comptime T: type, x: T, comptime e: std.builtin.Endian) T {

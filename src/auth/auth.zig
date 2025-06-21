@@ -3,10 +3,11 @@
 const std = @import("std");
 const root = @import("root");
 const debug = root.debug;
+const Guid = root.utils.Guid;
+const allocator = root.mem.heap.kernel_allocator;
 
 const UserList = std.ArrayList(*User);
 
-var allocator: std.mem.Allocator = undefined;
 var user_list: UserList = undefined;
 
 /// Represents virtual or real users
@@ -14,7 +15,7 @@ pub const User = struct {
     /// The index inside the users list
     index: usize,
     /// The unique identifier of this user
-    uuid: u128,
+    uuid: Guid,
     /// The user name
     name: []const u8,
     /// The user password
@@ -36,11 +37,12 @@ pub const User = struct {
 
 pub fn init() void {
 
-    allocator = root.mem.heap.kernel_allocator();
     user_list = UserList.init(allocator);
 
     // Appending the virtual system users
     append_user(.{
+        // > Adam is a better term for the first father of all tasks
+        // > than root was! - Terry A. Davis
         .user_name = "Adam",
         .user_passwd = "0000",
 
@@ -62,7 +64,8 @@ pub fn append_user(options: struct {
     is_global: bool = false,
 
     creation_timestamp: ?u64 = null
-}) void {
+}
+) void {
     
     var nuser = allocator.create(User) catch @panic("OOM");
     const index = user_list.items.len;
@@ -70,7 +73,7 @@ pub fn append_user(options: struct {
     nuser.* = .{
 
         .index = index,
-        .uuid = 0,
+        .uuid = Guid.new(),
         .name = options.user_name,
         .passwd = options.user_passwd,
 
@@ -90,12 +93,18 @@ pub fn append_user(options: struct {
 
 }
 
+pub fn get_user_by_index(index: usize) ?*User {
+    if (index >= user_list.items.len) return null;
+    return user_list.items[index];
+}
+
 pub fn lsusers() void {
     
     debug.print("Listing users:\n", .{});
 
     for (user_list.items) |i| {
-        debug.print("{: <2} - {s} {x} {c}{c}{c}\n", .{
+        debug.print("{: <2} - {s} {s} {c}{c}{c}\n", .{
+
             i.index,
             i.name,
             i.uuid,

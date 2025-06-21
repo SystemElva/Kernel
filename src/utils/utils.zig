@@ -1,0 +1,1 @@
+pub const Guid = @import("Guid.zig").Guid;

@@ -10,17 +10,17 @@ const Allocator = std.mem.Allocator;
 const free_magic: u32 = 0x626F6F42;
 const used_magic: u32 = 0x73746954;
 
-var kernel_allocator: KernelAlloc = undefined;
+pub var kernel_allocator: KernelAlloc = undefined;
 
 // Implementation of a buddy allocator
-const KernelAlloc = struct {
+pub const KernelAlloc = struct {
     blocks_root: *Block,
     rover: *Block,
 
     next_addr: usize,
 
     const base_alignment = 32;
-    const vtable: Allocator.VTable = .{
+    pub const vtable: Allocator.VTable = .{
         .alloc = &alloc,
         .resize = &resize,
         .remap = &remap,
@@ -267,12 +267,6 @@ pub fn init() void {
     };
 }
 
-pub fn get_kernel_allocator() Allocator {
-    return .{
-        .ptr = @ptrCast(&kernel_allocator),
-        .vtable = &KernelAlloc.vtable
-    };
-}
 pub fn lsmemblocks() void {
     debug.print("Kernel allocator memory blocks:\n", .{});
     debug.print("--------------------------------------------------------------------\n", .{});
