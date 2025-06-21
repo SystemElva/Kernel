@@ -17,6 +17,8 @@ pub const devices = @import("devices/devices.zig");
 pub const auth = @import("auth/auth.zig");
 /// Processes, tasks and execution
 pub const threading = @import("threading/threading.zig");
+/// Modules and drivers management
+pub const modules = @import("modules/modules.zig");
 /// Utils and help scripts
 pub const utils = @import("utils/utils.zig");
 
@@ -54,21 +56,19 @@ pub fn main(_boot_info: BootInfo) noreturn {
     // Printing hello world
     debug.print("\nHello, World from {s}!\n", .{ @tagName(system.arch) });
  
-    // Initializing devices
-    debug.err("# Initializing devices\n", .{});
-    devices.init() catch {
-        debug.print("Devices initialization failed!\n", .{}); };
+    debug.err("# Initializing OS specific\n", .{});
 
-    // Initializing OS-specific things
-    auth.init();            
+    auth.init();   
+    devices.init();
+    modules.init();         
     threading.init();
     system.time.init();
 
     // Setting up Adam
     const system_proc = threading.procman.get_process_from_pid(0).?;
     _ = system_proc.create_task(
-        @import("sysprocs/adam.zig")._start,
-        @ptrFromInt(boot_info.kernel_stack_pointer_base),
+        @import("sysprocs/adam/adam.zig")._start,
+        @as([*]u8, @ptrFromInt(boot_info.kernel_stack_pointer_base - 0x1000))[0..0x1000],
         255
     ) catch unreachable;
 

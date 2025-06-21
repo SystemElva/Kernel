@@ -16,6 +16,10 @@ context: root.system.TaskContext,
 process: *threading.Process,
 creation_timestamp: u64,
 
+// Cleanup data
+stack: []u8 = undefined,
+free_stack: bool = true,
+
 
 pub const TaskState = enum(u8) {
     Running,

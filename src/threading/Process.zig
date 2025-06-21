@@ -12,7 +12,7 @@ const scheduler = threading.scheduler;
 const auth = root.auth;
 
 const Task = threading.Task;
-const TaskEntry = *const fn (?*anyopaque) callconv(.c) isize;
+const TaskEntry = *const fn (?*anyopaque) callconv(.c) noreturn;
 const TaskContext = root.threading.TaskContext;
 
 const allocator = root.mem.heap.kernel_allocator;
@@ -33,7 +33,7 @@ creation_timestamp: u64,
 // Memory data
 // TODO allocated memory data
 
-pub fn create_task(s: *@This(), entry: TaskEntry, stack: *anyopaque, priority: u8) !*Task {
+pub fn create_task(s: *@This(), entry: TaskEntry, stack: ?[]u8, priority: u8) !*Task {
 
     const tid = b: {
 
@@ -63,6 +63,20 @@ pub fn create_task(s: *@This(), entry: TaskEntry, stack: *anyopaque, priority: u
     };
     s.tasks[tid] = ntask;
 
+    const real_stack: []u8 = b: {
+        if (stack) |stk| {
+            // Stack cleanup is delegated to caller
+            ntask.free_stack = false;
+            break :b stk;
+        }
+        const stack_size = 0x1000; // 4 KiB stack size
+        const new_stack = try allocator.alloc(u8, stack_size);
+
+        ntask.free_stack = true;
+        break :b new_stack;
+    };
+    ntask.stack = real_stack;
+
     ntask.context.set_privilege(s.privilege);
     ntask.context.set_flags(.{
         .carry = false,
@@ -72,7 +86,7 @@ pub fn create_task(s: *@This(), entry: TaskEntry, stack: *anyopaque, priority: u
         .interrupt = true,
     });
     ntask.context.set_instruction_ptr(@intFromPtr(entry));
-    ntask.context.set_stack_ptr(@intFromPtr(stack));
+    ntask.context.set_stack_ptr(@intFromPtr(ntask.stack.ptr) + ntask.stack.len);
 
     scheduler.append_task(ntask);
     return ntask;

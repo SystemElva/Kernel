@@ -8,7 +8,7 @@ pub const acpi = @import("acpi.zig");
 pub fn init() !void {
 
     pci.init();
-    try pci.list_pci_devices();
+    pci.list_pci_devices() catch @panic("Failed to list PCI devices");
 
     acpi.init();
 
