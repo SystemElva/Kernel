@@ -381,11 +381,17 @@ pub fn get_multiple_pages(len: usize, status: BlockStatus) ?*anyopaque {
     return @ptrFromInt(ptr_page * 4096 + hhdm_offset);
 }
 
+pub inline fn virtFromPhys(phys: usize) usize {
+    return phys +% hhdm_offset;
+}
+pub inline fn physFromVirt(virt: usize) usize {
+    return virt -% hhdm_offset;
+}
 pub inline fn ptrFromPhys(comptime T: type, phys: usize) T {
-    return @as(T, @ptrFromInt(phys +% hhdm_offset));
+    return @as(T, @ptrFromInt(virtFromPhys(phys)));
 }
 pub inline fn physFromPtr(ptr: anytype) usize {
-    return @intFromPtr(ptr) -% hhdm_offset;
+    return physFromVirt(@intFromPtr(ptr));
 }
 
 const Block = extern struct {

@@ -1,7 +1,7 @@
 const std = @import("std");
 const root = @import("root");
 const sys = root.system;
-const pmm = root.mem.pmm;
+const pmm = sys.mem.pmm;
 
 const debug = root.debug;
 

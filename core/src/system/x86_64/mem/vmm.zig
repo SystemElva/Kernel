@@ -11,13 +11,12 @@ const free_magic: u32 = 0x626F6F42;
 const used_magic: u32 = 0x73746954;
 
 pub var kernel_allocator: KernelAlloc = undefined;
+var kernel_heap_next_addr: usize = undefined;
 
 // Implementation of a buddy allocator
 pub const KernelAlloc = struct {
     blocks_root: *Block,
     rover: *Block,
-
-    next_addr: usize,
 
     const base_alignment = 32;
     pub const vtable: Allocator.VTable = .{
@@ -35,7 +34,7 @@ pub const KernelAlloc = struct {
         const aligned_len = std.mem.alignForward(usize, len, base_alignment);
         var s: *KernelAlloc = @ptrCast(@alignCast(self));
 
-        debug.print("allocation requested: {}; aligned: {}\n", .{len, aligned_len});
+        debug.err("allocation requested: {}; aligned: {}\n", .{len, aligned_len});
 
         // Finding a free block
         const free_block: *Block = b: {
@@ -85,7 +84,7 @@ pub const KernelAlloc = struct {
         const aligned_len = std.mem.alignForward(usize, new_len, base_alignment);
         var s: *KernelAlloc = @ptrCast(@alignCast(self));
 
-        debug.print("resize requested: {}; aligned: {}\n", .{new_len, aligned_len});
+        debug.err("resize requested: {}; aligned: {}\n", .{new_len, aligned_len});
 
         const curr_block: *Block = @ptrFromInt(@intFromPtr(memory.ptr) - @sizeOf(Block));
         curr_block.doTest();
@@ -148,7 +147,7 @@ pub const KernelAlloc = struct {
 
         const aligned_len = std.mem.alignForward(usize, new_len, 8);
 
-        debug.print("remap requested: {}; aligned: {}\n", .{new_len, aligned_len});
+        debug.err("remap requested: {}; aligned: {}\n", .{new_len, aligned_len});
 
         return null;
     }
@@ -156,7 +155,7 @@ pub const KernelAlloc = struct {
         _ = alignment;
         _ = ret_addr;
 
-        debug.print("free requested\n", .{});
+        debug.err("free requested\n", .{});
 
         var s: *KernelAlloc = @ptrCast(@alignCast(self));
 
@@ -170,6 +169,11 @@ pub const KernelAlloc = struct {
 
     fn extend_heap(kalloc: @This()) !void {
         _ = kalloc;
+        @panic("Extend heap not implemented yet!");
+        // TODO This function should allocate a new block of memory and add it to the
+        // end of the linked list of blocks.
+        // It should also update the `rover` pointer if necessary.
+        // For now, it just panics to indicate that this functionality is not yet implemented.
     }
 
     pub fn lsmemblocks(s: @This()) void {
@@ -180,19 +184,19 @@ pub const KernelAlloc = struct {
             const c_start = @intFromPtr(cur) + @sizeOf(Block);
 
             const block_bytes = std.mem.asBytes(cur.?);
-            debug.print("{X: <16} :", .{@intFromPtr(cur.?)});
+            debug.err("{X: <16} :", .{@intFromPtr(cur.?)});
 
             var buf: [32*3 + 32]u8 = undefined;
             var ptr: usize = 0;
 
             for (0..32) |j| ptr += (std.fmt.bufPrint(buf[ptr ..], "{X:0>2} ", .{block_bytes[j]}) catch unreachable).len;
             for (0..32) |j| ptr += (std.fmt.bufPrint(buf[ptr ..], "{c}", .{ if (std.ascii.isPrint(block_bytes[j])) block_bytes[j] else '.' }) catch unreachable).len;
-            debug.print("{s}\n", .{buf[0..ptr]});
+            debug.err("{s}\n", .{buf[0..ptr]});
             
-            debug.print("{x: >8}, {X: >16}, {X: >16}: ", .{cur.?.magic_a, c_start, cur.?.len});
+            debug.err("{x: >8}, {X: >16}, {X: >16}: ", .{cur.?.magic_a, c_start, cur.?.len});
 
             const c_end = @addWithOverflow(c_start, cur.?.len);
-            debug.print("{s} {X} .. {X}{s} ({} bytes) - {s} (next in {X})", .{
+            debug.err("{s} {X} .. {X}{s} ({} bytes) - {s} (next in {X})", .{
                 if (cur.?.doTestFailable()) "OK " else "BAD",
                 c_start,
                 c_end[0],
@@ -202,11 +206,11 @@ pub const KernelAlloc = struct {
                 if (cur.?.next) |n| @intFromPtr(n) else 0
             });
             
-            if (s.blocks_root == cur) debug.print(" (root)", .{});
-            if (s.blocks_root.prev == cur) debug.print(" (end)", .{});
-            if (s.rover == cur) debug.print(" (rover)", .{});
+            if (s.blocks_root == cur) debug.err(" (root)", .{});
+            if (s.blocks_root.prev == cur) debug.err(" (end)", .{});
+            if (s.rover == cur) debug.err(" (rover)", .{});
 
-            debug.print("\n\n", .{});
+            debug.err("\n\n", .{});
             if (!cur.?.doTestFailable()) break;
         }
     }
@@ -263,15 +267,15 @@ pub fn init() void {
     kernel_allocator = .{
         .blocks_root = block_root,
         .rover = block_root,
-        .next_addr = heap_start + pmm.page_size * 2,
     };
+    kernel_heap_next_addr = heap_start + pmm.page_size * 2;
 }
 
 pub fn lsmemblocks() void {
-    debug.print("Kernel allocator memory blocks:\n", .{});
-    debug.print("--------------------------------------------------------------------\n", .{});
+    debug.err("Kernel allocator memory blocks:\n", .{});
+    debug.err("--------------------------------------------------------------------\n", .{});
     kernel_allocator.lsmemblocks();
-    debug.print("--------------------------------------------------------------------\n", .{});
-    debug.print("\n", .{});
+    debug.err("--------------------------------------------------------------------\n", .{});
+    debug.err("\n", .{});
 }
 

@@ -107,6 +107,8 @@ pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, return_address: ?usiz
     debug.print("\n!!! KERNEL PANIC !!!\n", .{});
     debug.print("Error: {s}\n\n", .{msg});
 
+    system.mem.pmm.lsmemblocks();
+
     if (return_address) |ret| {
         debug.print("Stack Trace in stderr\n", .{});
         debug.err("Stack Trace:\n", .{});

@@ -142,10 +142,10 @@ pub const TaskContext = extern struct {
     pub fn format(self: *const @This(), comptime _: []const u8, _: std.fmt.FormatOptions, fmt: anytype) !void {
 
         // General purpose registers
-        try fmt.print("RAX-{x:0>16} RBX-{x:0>16} RCX-{x:0>16} RDX-{x:0>16}\n", .{ self.rax, self.rbx, self.rcx, self.rdx });
-        try fmt.print("RSI-{x:0>16} RDI-{x:0>16} RBP-{x:0>16} RSP-{x:0>16}\n", .{ self.rsi, self.rdi, self.rbp, self.rsp });
-        try fmt.print("R8 -{x:0>16} R9 -{x:0>16} R10-{x:0>16} R11-{x:0>16}\n", .{ self.r8, self.r9, self.r10, self.r11 });
-        try fmt.print("R12-{x:0>16} R13-{x:0>16} R14-{x:0>16} R15-{x:0>16}\n", .{ self.r12, self.r13, self.r14, self.r15 });
+        try fmt.print("RAX={x:0>16} RBX={x:0>16} RCX={x:0>16} RDX={x:0>16}\n", .{ self.rax, self.rbx, self.rcx, self.rdx });
+        try fmt.print("RSI={x:0>16} RDI={x:0>16} RBP={x:0>16} RSP={x:0>16}\n", .{ self.rsi, self.rdi, self.rbp, self.rsp });
+        try fmt.print("R8 ={x:0>16} R9 ={x:0>16} R10={x:0>16} R11={x:0>16}\n", .{ self.r8, self.r9, self.r10, self.r11 });
+        try fmt.print("R12={x:0>16} R13={x:0>16} R14={x:0>16} R15={x:0>16}\n", .{ self.r12, self.r13, self.r14, self.r15 });
 
         // SIMD registers
         try fmt.print("FCW={x:0>4} FSW={x:0>4} FTW={x:0>2} FOP={x:0>4}\n", .{ self.simd.fcw, self.simd.fsw, self.simd.ftw, self.simd.fop });
@@ -190,7 +190,7 @@ pub const TaskContext = extern struct {
         try write_segment(fmt, "DS", self.ds);
         
         try fmt.print("GDT=     {X:0>16} {X:0>8}\n", .{ gdt.get_ptr().base, gdt.get_ptr().limit });
-        try fmt.print("ITD=     {X:0>16} {X:0>8}\n", .{ idt.get_ptr().base, idt.get_ptr().limit });
+        try fmt.print("IDT=     {X:0>16} {X:0>8}\n", .{ idt.get_ptr().base, idt.get_ptr().limit });
 
         try fmt.print("CR2={x:0>16}\n", .{ self.cr2 });
 

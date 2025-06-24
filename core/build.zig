@@ -54,6 +54,13 @@ pub fn build(b: *std.Build) void {
     kernel_mod.omit_frame_pointer = false;
     kernel_mod.strip = false;
 
+    // loading dependences
+    const SElvaAHCI_module = b.dependency("SElvaAHCI", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("SElvaAHCI_module");
+    kernel_mod.addImport("SElvaAHCI_module", SElvaAHCI_module);
+
     // kernel executable
     const kernel_exe = b.addExecutable(.{
         .name = "kernel",

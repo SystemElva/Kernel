@@ -1,10 +1,11 @@
 const std = @import("std");
 const root = @import("root");
 const ports = root.system.ports;
-const debug =root.debug;
+const debug = root.debug;
 const pci_global = @import("../../pci.zig");
+const allocator = root.mem.heap.kernel_allocator;
 
-pub const Addr = @import("Addr.zig");
+pub const Addr = @import("Addr.zig").Addr;
 
 const PciDevice = pci_global.PciDevice;
 const DeviceList = pci_global.DeviceList;
@@ -31,16 +32,17 @@ pub fn device_scan(bus: u8, device: u5, list: *DeviceList) void {
 
     if (nullfunc.header_type().read() == 0xFFFF) return;
 
-    function_scan(nullfunc, list);
+    function_scan(nullfunc, list) catch |err| debug.err("Could not list device: {s}\n", .{@errorName(err)});
 
     if (nullfunc.header_type().read() & 0x80 == 0) return;
 
     inline for (0..((1 << 3) - 1)) |function| {
-        function_scan(.{ .bus = bus, .device = device, .function = @intCast(function + 1) }, list);
+        function_scan(.{ .bus = bus, .device = device, .function = @intCast(function + 1) }, list)
+            catch |err| debug.err("Could not list device: {s}\n", .{@errorName(err)});
     }
 }
 
-pub fn function_scan(addr: Addr, list: *DeviceList) void {
+pub fn function_scan(addr: Addr, list: *DeviceList) !void {
     if (addr.vendor_id().read() == 0xFFFF) return;
 
     // Append devices to the devices list
@@ -73,7 +75,10 @@ pub fn function_scan(addr: Addr, list: *DeviceList) void {
         if (!still_unrecognized) return;
     }
 
-    list.append(.{ .addr = addr }) catch @panic("OOM");
+    const new_device = try allocator.create(PciDevice);
+    errdefer allocator.destroy(new_device);
+    new_device.* = .{ .addr = addr };
+    try list.append(new_device);
 
 }
 

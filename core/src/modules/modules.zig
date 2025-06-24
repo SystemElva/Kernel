@@ -4,19 +4,21 @@ const system = root.system;
 const debug = root.debug;
 const allocator = root.mem.heap.kernel_allocator;
 
-const ModulesList = std.ArrayList(Module);
+const ModulesList = std.ArrayList(*Module);
 var modules_list: ModulesList = undefined;
+var unitialized_modules_list: ModulesList = undefined;
 
 pub fn init() void {
     debug.err("Initializing modules service...\n", .{});
 
     modules_list = ModulesList.init(allocator);
+    unitialized_modules_list = ModulesList.init(allocator);
 }
 
 pub fn lsmodules() void {
     debug.print("Listing active modules:\n", .{});
     for (modules_list.items) |i| {
-        debug.print("{s: >15} {s: >7} by {s} ({s} liscence)", .{ i.name, i.version, i.author, i.license });
+        debug.print("{s} {s} by {s} ({s} liscence) - {s}\n", .{ i.name, i.version, i.author, i.license, @tagName(i.status) });
     }
 }
 
@@ -29,16 +31,40 @@ pub export fn register_module(
 
     init_func:   *const fn () callconv(.c) bool,
     deinit_func: *const fn () callconv(.c) void,
-
-    behavior: ModulePermissions,
 ) bool {
+    register_module_internal(
+        name,
+        version,
+        author,
+        license,
+
+        init_func,
+        deinit_func,
+    ) catch |err| {
+        debug.err("Error registering module '{s}': {s}\n", .{name, @errorName(err)});
+        return false;
+    };
+    return true;
+}
+fn register_module_internal(
+    name: [*:0]const u8,
+    version: [*:0]const u8,
+    author: [*:0]const u8,
+    license: [*:0]const u8,
+
+    init_func:   *const fn () callconv(.c) bool,
+    deinit_func: *const fn () callconv(.c) void,
+) !void {
 
     const name_slice = std.mem.sliceTo(name, 0);
     const version_slice = std.mem.sliceTo(version, 0);
     const author_slice = std.mem.sliceTo(author, 0);
     const license_slice = std.mem.sliceTo(license, 0);
 
-    const module: Module = .{
+    const module = try allocator.create(Module);
+    errdefer allocator.destroy(module);
+
+    module.* = .{
         .name = name_slice,
         .version = version_slice,
         .author = author_slice,
@@ -48,26 +74,35 @@ pub export fn register_module(
         .init = init_func,
         .deinit = deinit_func,
 
-        .behavior = behavior,
+        .status = ModuleStatus.Waiting,
+        .permissions = undefined,
     };
 
     // Check if the module is already registered
     for (modules_list.items) |existing_module| {
         if (std.mem.eql(u8, existing_module.name, module.name)) {
             debug.err("Module '{s}' ver. {s} is already registered.\n", .{module.name, module.version});
-            return false;
+            return error.ModuleAlreadyRegistered;
         }
     }
 
-    // Add the module to the list
-    modules_list.append(module) catch {
-        debug.err("Failed to register module '{s}'.\n", .{module.name});
-        return false;
+    // Add the module to the lists
+    try modules_list.append(module);
+    errdefer _ = modules_list.pop();
+    try unitialized_modules_list.append(module);
+
+    // TODO some logic to wake up adam
+
+}
+
+pub inline fn has_waiting_modules() bool {
+    return unitialized_modules_list.items.len > 0;
+}
+pub inline fn get_next_waiting_module() ?*Module {
+    return unitialized_modules_list.pop() orelse {
+        debug.err("No waiting modules to pop.\n", .{});
+        return null;
     };
-
-    debug.print("Module '{s}' registered successfully.\n", .{module.name});
-    return true;
-
 }
 
 pub const Module = struct {
@@ -80,7 +115,15 @@ pub const Module = struct {
     init:   *const fn () callconv(.c) bool,
     deinit: *const fn () callconv(.c) void,
 
-    behavior: ModulePermissions,
+    status: ModuleStatus,
+    permissions: ModulePermissions,
+};
+
+pub const ModuleStatus = enum {
+    Waiting,
+    Ready,
+    Failed,
+    Active
 };
 
 pub const ModulePermissions = packed struct(u64) {

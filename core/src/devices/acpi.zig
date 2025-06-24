@@ -9,7 +9,7 @@ const debug = root.debug;
 pub fn init() void {
 
     const binfo = root.get_boot_info();
-    const rsd_ptr = root.mem.pmm.ptrFromPhys(*align(1) Rsd, binfo.rsdp_physical);
+    const rsd_ptr = root.mem.ptrFromPhys(*align(1) Rsd, binfo.rsdp_physical);
 
     if (!std.mem.eql(u8, &rsd_ptr.signature, "RSD PTR ")) @panic("Invalid RSD signature!");
 

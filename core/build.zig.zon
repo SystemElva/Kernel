@@ -2,7 +2,9 @@
     .name = .SElva_kernel_core,
     .version = "0.0.0",
 
-    .dependencies = .{},
+    .dependencies = .{
+        .SElvaAHCI = .{ .path = "../apps/SElvaAHCI" },
+    },
 
     .paths = .{ "build.zig", "build.zig.zon" },
 }

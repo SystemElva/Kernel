@@ -10,6 +10,7 @@ const root = @import("root");
 const threading = root.threading;
 const scheduler = threading.scheduler;
 const auth = root.auth;
+const debug = root.debug;
 
 const Task = threading.Task;
 const TaskEntry = *const fn (?*anyopaque) callconv(.c) noreturn;
@@ -34,8 +35,9 @@ creation_timestamp: u64,
 // TODO allocated memory data
 
 pub fn create_task(s: *@This(), entry: TaskEntry, stack: ?[]u8, priority: u8) !*Task {
+    errdefer |err| debug.err("Failed to create task: {s}\n", .{@errorName(err)});
 
-    const tid = b: {
+    const tid: usize = b: {
 
         if (s.task_rover > s.tasks.len) try s.enlarge_task_list();
 
@@ -48,11 +50,11 @@ pub fn create_task(s: *@This(), entry: TaskEntry, stack: ?[]u8, priority: u8) !*
                 };
             try s.enlarge_task_list();
         }
-        @panic("pain");
-
+        unreachable;
     };
 
     const ntask = try allocator.create(Task);
+    errdefer allocator.destroy(ntask);
     ntask.* = .{
         .task_id = @intCast(tid),
         .priority = priority,
@@ -69,8 +71,9 @@ pub fn create_task(s: *@This(), entry: TaskEntry, stack: ?[]u8, priority: u8) !*
             ntask.free_stack = false;
             break :b stk;
         }
-        const stack_size = 0x1000; // 4 KiB stack size
+        const stack_size = 0x1000 * 2; // 8 KiB stack size
         const new_stack = try allocator.alloc(u8, stack_size);
+        errdefer allocator.free(new_stack);
 
         ntask.free_stack = true;
         break :b new_stack;
@@ -93,6 +96,8 @@ pub fn create_task(s: *@This(), entry: TaskEntry, stack: ?[]u8, priority: u8) !*
 }
 
 fn enlarge_task_list(s: *@This()) !void {
+    errdefer |err| debug.err("Failed to enlarge task list: {s}\n", .{@errorName(err)});
+
     const new_size = @max(1, s.tasks.len + (std.math.divCeil(usize,s.tasks.len, 2) catch unreachable));
     const new_list = try allocator.alloc(?*Task, new_size);
     @memcpy(new_list[0 .. s.tasks.len], s.tasks[0..s.tasks.len]);

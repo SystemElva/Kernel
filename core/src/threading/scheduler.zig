@@ -18,10 +18,11 @@ pub fn init() void {
 
 pub fn append_task(t: *Task) void {
     task_list.append(t) catch @panic("OOM");
+    root.threading.procman.lstasks();
 }
 
 pub fn do_schedule(current_frame: *TaskContext) void {
-    
+
     if (current_task) |ct| ct.context = current_frame.*;
 
     if (next_index >= task_list.items.len) next_index = 0;

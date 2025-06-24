@@ -29,6 +29,12 @@ pub const serial = switch (arch) {
 /// Memory and pagination management
 pub const mem = .{
     .paging = @import("paging.zig"),
+    .pmm = switch (arch) {
+        //.aarch64 => @import("aarchx64/asm.zig"),
+        .x86_64 =>  @import("x86_64/mem/pmm.zig"),
+        //.x86 =>     @import("x86/asm.zig"),
+        else => unreachable
+    },
     .vmm = switch (arch) {
         //.aarch64 => @import("aarchx64/asm.zig"),
         .x86_64 =>  @import("x86_64/mem/vmm.zig"),

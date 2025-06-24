@@ -1,5 +1,5 @@
 .{
-    .name = .SElvaAHCI_module,
+    .name = .SElvaAHCI,
     .version = "0.0.0",
 
     .dependencies = .{},
