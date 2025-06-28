@@ -293,11 +293,17 @@ pub const KernelPageAllocator = struct {
 
 pub fn init() void {
     // Allocating 2 pages to use as initial heap
-    const heap =  pmm.get_multiple_pages(2, .kernel_heap);
-    const heap_start = pmm.kernel_page_end * pmm.page_size;
+    const heap_raw =  pmm.get_multiple_pages(16, .kernel_heap);
+    const heap_start = pmm.kernel_virt_end + pmm.page_size;
 
     // Mapping it to after the kernel
-    paging.map_single_page(pmm.physFromPtr(heap), heap_start, 10, pmm.atributes_ROX_privileged_fixed) catch unreachable;
+    paging.map_range(
+        pmm.physFromPtr(heap_raw),
+        heap_start,
+        16 * pmm.page_size,
+        pmm.atributes_ROX_privileged_fixed
+    ) catch unreachable;
+    const heap: *anyopaque = @ptrFromInt(heap_start);
 
     @memset(@as([*]u8, @ptrCast(@alignCast(heap)))[0 .. pmm.page_size * 2], '@');
 
@@ -315,7 +321,7 @@ pub fn init() void {
         .blocks_root = block_root,
         .rover = block_root,
     };
-    kernel_heap_next_addr = heap_start + pmm.page_size * 2;
+    kernel_heap_next_addr = heap_start + pmm.page_size * 16;
 }
 
 pub fn lsmemblocks() void {

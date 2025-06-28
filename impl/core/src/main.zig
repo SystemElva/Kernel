@@ -49,8 +49,7 @@ pub fn main(_boot_info: BootInfo) noreturn {
 
 
     // Setupping system-dependant resources
-    system.init() catch {
-        @panic("System could not be initialized!"); };
+    system.init() catch { @panic("System could not be initialized!"); };
     // Setting up Virtual memory manager
     system.vmm.init();
 

@@ -51,13 +51,10 @@ pub fn init(fb: []u8, w: usize, h: usize, p: usize) void {
     debug.print(
         \\
         \\Graphics library info:
-        \\w: {}
-        \\h: {}
-        \\p: {}
-        \\fx: {}
-        \\fy: {}
-        \\cw: {}
-        \\ch: {}
+        \\w:  {: >5} h:  {: >5} p:  {: >5}
+        \\fx: {: >5} fy: {: >5}
+        \\cw: {: >5} ch: {: >5}
+        \\
     , .{ width, height, pps, font_width, font_height, char_width, char_height });
 }
 

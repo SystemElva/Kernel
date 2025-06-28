@@ -28,6 +28,8 @@ pub fn init() callconv(.c) bool {
     debug.print("Probing PCI devices...\n", .{});
     pci.pci_device_probe(query, device_probe);
 
+    root.devices.disk.lsblk();
+
     debug.print("Returning...\n", .{});
     return true;
 }
@@ -51,12 +53,12 @@ pub fn device_probe(dev: *PciDevice) callconv(.c) bool {
     
     const bar_info = dev.addr.barinfo(5);
     debug.print("Bar info: ptr: {X}, size: {} bytes\n", .{bar_info.phy, bar_info.size});
-    //const abar_phys = root.mem.ptrFromPhys(*HBAMem, bar_info.phy);
+    const bar_size_aligned = std.mem.alignForward(usize, bar_info.size, sys.pmm.page_size);
 
-    const allocation = root.mem.heap.kernel_page_allocator.request_space(bar_info.size);
+    const allocation = root.mem.heap.kernel_page_allocator.request_space(bar_size_aligned);
 
     // Remapping pages
-    root.system.mem_paging.map_range(bar_info.phy, allocation, bar_info.size, .{
+    root.system.mem_paging.map_range(bar_info.phy, allocation, bar_size_aligned, .{
         .disable_cache = true,
         .execute = false,
         .privileged = true,
@@ -64,9 +66,10 @@ pub fn device_probe(dev: *PciDevice) callconv(.c) bool {
         .write = true,
         .lock = true
     })
-    catch {
+    catch |err| {
         // Mapping error! free the allocation and return false
         root.mem.heap.kernel_page_allocator.free_space(bar_info.size);
+        root.debug.print("Error! {s}\n", .{ @errorName(err) });
         return false;
     };
 
@@ -89,7 +92,7 @@ pub fn find_cmdslot(port: *HBAPort, cmdslots: usize) isize {
 
 fn iterate_ports(abar: *HBAMem) void {
 
-    debug.err("Iterate though aHCI ports...\n", .{});
+    debug.print("Iterate though aHCI ports...\n", .{});
 
     // Search disk in implemented ports
     var pi: u32 = abar.pi;
@@ -142,10 +145,50 @@ fn name_device(dev: *PciDevice) void {
             switch (dev.addr.device_id().read()) {
                 else => |v| debug.err("Unknown device ID {X:0>4} from vendor {s}", .{v, dev.vendor_str}),
 
+                0x06d2,
+                0x02d3 => dev.name_str = "Comet Lake SATA AHCI Controller",
+
+                0x0f22,
+                0x0f23 => dev.name_str = "Atom Processor E3800 Series SATA AHCI Controller",
+
+                0x1bd2,
+                0x1bf2 => dev.name_str = "Sapphire Rapids SATA AHCI Controller",
+
+                0x1c02,
+                0x1c03 => dev.name_str = "Intel 6 Series/C200 Series Chipset Family SATA AHCI Controller",
+                0x8c02 => dev.name_str = "Intel 8 Series/C220 Chipset Family SATA Controller 1 [AHCI mode]",
+                0x9c03 => dev.name_str = "Intel 9 Series Chipset Family SATA Controller [AHCI Mode]",
+
+                0x1d02 => dev.name_str = "C600/X79 series chipset 6-Port SATA AHCI Controller",
+
+                0x1e02 => dev.name_str = "7 Series/C210 Series Chipset Family 6-port SATA Controller [AHCI mode]",
+                0x1e03 => dev.name_str = "7 Series Chipset Family 6-port SATA Controller [AHCI mode]",
+
+                0x1f22,
+                0x1f23 => dev.name_str = "Atom processor C2000 AHCI SATA2 Controller",
+                0x1f32,
+                0x1f33 => dev.name_str = "Atom processor C2000 AHCI SATA3 Controller",
+
+                0x22a4 => dev.name_str = "Atom/Celeron/Pentium Processor x5-E8000/J3xxx/N3xxx Series SATA AHCI Controller",
+                0x2323 => dev.name_str = "DH89xxCC 4 Port SATA AHCI Controller",
+                0x23a3 => dev.name_str = "DH895XCC Series 4-Port SATA Controller [AHCI Mode]",
+                
+                0x2681 => dev.name_str = "631xESB/632xESB SATA AHCI Controller",
+
+                0x27c1 => dev.name_str = "NM10/ICH7 Family SATA Controller [AHCI mode]",
+                0x27c5 => dev.name_str = "82801GBM/GHM (ICH7-M Family) SATA Controller [AHCI mode]",
+
+                0x2821 => dev.name_str = "82801HR/HO/HH (ICH8R/DO/DH) 6 port SATA Controller [AHCI mode]",
+                0x2824 => dev.name_str = "82801HB (ICH8) 4 port SATA Controller [AHCI mode]",
+                0x2829 => dev.name_str = "82801HM/HEM (ICH8M/ICH8M-E) SATA Controller [AHCI mode]",
+
                 0x2922 => dev.name_str = "Intel ICH9 SATA Controller [AHCI mode]",
-                0x1C02 => dev.name_str = "Intel 6 Series/C200 Series Chipset Family SATA AHCI Controller",
-                0x8C02 => dev.name_str = "Intel 8 Series/C220 Chipset Family SATA Controller 1 [AHCI mode]",
-                0x9C03 => dev.name_str = "Intel 9 Series Chipset Family SATA Controller [AHCI Mode]"
+                0x2923 => dev.name_str = "82801IB (ICH9) 4 port SATA Controller [AHCI mode]",
+                0x2929 => dev.name_str = "82801IBM/IEM (ICH9M/ICH9M-E) 4 port SATA Controller [AHCI mode]",
+
+                0x34de => dev.name_str = "Ice Lake-LP SATA Controller [AHCI mode]",
+
+                0x9c83 => dev.name_str = "Wildcat Point-LP SATA Controller [AHCI Mode]",
 
             }
         },
@@ -216,7 +259,7 @@ pub const AHCIDeviceEntry = struct {
 pub const FIS_Reg_H2D = packed struct {
     fis_type: u8,
     pmport: u4,
-    _reserved_0: u3,
+    _reserved_0: u3 = 0,
     c: u1,
 
     command: u8,
@@ -237,7 +280,7 @@ pub const FIS_Reg_H2D = packed struct {
     icc: u8,
     control: u8,
 
-    _reserved_1: u64
+    _reserved_1: u64 = 0
 };
 // FIS register - Device to Host
 pub const FIS_Reg_D2H = packed struct {
@@ -431,9 +474,9 @@ pub const HBACMDTable = extern struct {
 pub const HBAPRDTEntry = packed struct {
     dba: u32,
     dbau: u32,
-    _reserved_0: u32,
+    _reserved_0: u32 = 0,
 
     dbc: u22,
-    _reserved_1: u9,
+    _reserved_1: u9 = 0,
     i: u1
 };

@@ -53,9 +53,7 @@ pub fn _start(args: ?*anyopaque) callconv(.c) noreturn {
                 module.status = .Failed;
             }
             
-            debug.print("Module {s} status: {s}\n", .{module.name, @tagName(module.status)});
-
-            root.devices.pci.lspci();
+            debug.print("Initialization done; Module {s} status: {s}\n", .{module.name, @tagName(module.status)});
         }
 
     }

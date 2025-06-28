@@ -13,13 +13,13 @@ pub fn init() void {
 
     if (!std.mem.eql(u8, &rsd_ptr.signature, "RSD PTR ")) @panic("Invalid RSD signature!");
 
-    const table = rsd_ptr.get_root_table(); 
+    //const table = rsd_ptr.get_root_table(); 
 
-    for (0..table.len()) |i| {
+    // for (0..table.len()) |i| {
         
-        const t = table.get_ptr(i);
-        debug.print("{} - rev {} - {s} - checksum {}\n", .{i, t.header.revision, t.header.signature, t.header.do_checksum()});
+    //     const t = table.get_ptr(i);
+    //     debug.print("{} - rev {} - {s} - checksum {}\n", .{i, t.header.revision, t.header.signature, t.header.do_checksum()});
 
-    }
+    // }
 
 }

@@ -17,8 +17,12 @@ var memory_blocks_buffer: []Block = undefined;
 
 pub var hhdm_offset: usize = undefined;
 var total_memory_bytes: usize = undefined;
+
 pub var kernel_page_start: usize = undefined;
 pub var kernel_page_end: usize = undefined;
+
+pub var kernel_virt_start: usize = undefined;
+pub var kernel_virt_end: usize = undefined;
 
 pub const page_size = 4096;
 
@@ -57,6 +61,7 @@ pub fn setup() void {
     const mmap = boot_info.memory_map;
 
     debug.err("\nphys base: {X: >16}\nvirt base: {X: >16}\n\n", .{ boot_info.kernel_base_physical, boot_info.kernel_base_virtual });
+    kernel_virt_start = std.mem.alignBackward(usize, boot_info.kernel_base_virtual, page_size);
 
     for (mmap) |i| {
 
@@ -115,6 +120,7 @@ pub fn setup() void {
         
             kernel_page_start = i.base / page_size;
             kernel_page_end = kernel_page_start + i.size / page_size;
+            kernel_virt_end = std.mem.alignForward(usize, kernel_virt_start + i.size, page_size);
         } else {
             debug.err("skipping {X} .. {X} ({s})\n", .{ i.base, i.base + i.size, @tagName(i.type)});
             continue;
@@ -169,29 +175,33 @@ pub fn setup() void {
     debug.print("Nothing exploded yay :3...\n", .{});
 
     // allocating pmm final heap
-    const pmm_heap = get_multiple_pages(10, .kernel_heap);
-    memory_blocks_buffer = @as([*]Block, @ptrCast(@alignCast(pmm_heap.?)))[0 .. 10 * page_size / @sizeOf(Block)];
+    const pmm_heap = get_multiple_pages(16, .kernel_heap);
+    memory_blocks_buffer = @as([*]Block, @ptrCast(@alignCast(pmm_heap.?)))[0 .. 16 * page_size / @sizeOf(Block)];
 
-    var cur_block: ?*Block = memory_blocks_root;
+    var cblk: ?*Block = memory_blocks_root;
     var idx: usize = 0;
 
-    while (cur_block != null) {
-        memory_blocks_buffer[idx].status = cur_block.?.status;
-        memory_blocks_buffer[idx].start = cur_block.?.start;
-        memory_blocks_buffer[idx].length = cur_block.?.length;
+    while (cblk) |cur_block| : ({ idx += 1; cblk = cur_block.next; }) {
+
+        memory_blocks_buffer[idx].status = cur_block.status;
+        memory_blocks_buffer[idx].start = cur_block.start;
+        memory_blocks_buffer[idx].length = cur_block.length;
 
         if (idx > 0) {
             memory_blocks_buffer[idx].previous = &memory_blocks_buffer[idx - 1];
             memory_blocks_buffer[idx - 1].next = &memory_blocks_buffer[idx];
         }
-
-        idx += 1;
-        cur_block = cur_block.?.next;
     }
-    memory_blocks_buffer[idx - 1].next = null;
 
     memory_blocks_buffer[0].previous = null;
     memory_blocks_buffer[idx - 1].next = null;
+    @memset(memory_blocks_buffer[idx..], .{
+        .start = 0,
+        .length = 0,
+        .status = .unused,
+        .previous = null,
+        .next = null
+    });
 
     memory_blocks_root = &memory_blocks_buffer[0];
     debug.err("Memory blocks final heap created\n", .{});
@@ -328,12 +338,9 @@ pub fn get_multiple_pages(len: usize, status: BlockStatus) ?*anyopaque {
 
         var new_block = b: {
             for (memory_blocks_buffer) |*mb| {
-                debug.print("status: {s}\n", .{@tagName(mb.status)});
                 if (mb.status == .unused) break :b mb;
             }
-            std.debug.panic(\\ TODO increase buffer length
-            \\ Trying to get {} pages at once
-            , .{len});
+            @panic("TODO increase buffer length");
         };
 
         new_block.status = status;
