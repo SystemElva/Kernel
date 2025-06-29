@@ -32,13 +32,17 @@ pub fn append_device(
     const entry = &disk_entry_list[free_slot];
     entry.* = .{
         .context = ctx,
-        .read = read,
-        .write = write,
-        .remove = remove
+        .vtable_read = read,
+        .vtable_write = write,
+        .vtable_remove = remove
     };
     if (devtype != null) entry.*.?.type = devtype.?;
 
     return free_slot;
+}
+
+pub fn get_disk_by_idx(index: usize) ?DiskEntry {
+    return disk_entry_list[index];
 }
 
 pub fn lsblk() void {
@@ -57,12 +61,22 @@ pub const DiskEntry = struct {
     pub const RemoveHook = *const fn (ctx: *anyopaque) callconv(.c) void;
     const default_type: []const u8 = "UNK";
 
+    /// Pointer to the guest context
     context: *anyopaque,
 
+    /// The readable type name of the device
+    /// e.g. `flash`, `CD`, `SSD`, `HHD`, `nVME`
     type: []const u8 = default_type,
 
-    read: ReadWriteHook,
-    write: ReadWriteHook,
-    remove: RemoveHook,
+    vtable_read: ReadWriteHook,
+    vtable_write: ReadWriteHook,
+    vtable_remove: RemoveHook,
+
+
+    /// Performs a read operation
+    pub fn read(s: @This(), sector: usize, buffer: []u8) !void {
+        const ok = s.vtable_read(s.context, sector, buffer.ptr, buffer.len);
+        if (!ok) return error.CannotRead;
+    }
 
 };
