@@ -2,6 +2,7 @@ const std = @import("std");
 const root = @import("root");
 const sys = root.system;
 const debug = root.debug;
+const units = root.utils.units.data;
 
 const allocator = root.mem.heap.kernel_buddy_allocator;
 
@@ -17,9 +18,8 @@ pub fn init() void {
 pub fn append_device(
     ctx: *anyopaque,
     devtype: ?[]const u8,
-    read: DiskEntry.ReadWriteHook,
-    write: DiskEntry.ReadWriteHook,
-    remove: DiskEntry.RemoveHook
+    seclen: usize,
+    vtable: *const DiskEntry.VTable,
 ) usize {
 
     const free_slot = b: {
@@ -32,9 +32,8 @@ pub fn append_device(
     const entry = &disk_entry_list[free_slot];
     entry.* = .{
         .context = ctx,
-        .vtable_read = read,
-        .vtable_write = write,
-        .vtable_remove = remove
+        .sectors_length = seclen,
+        .vtable = vtable
     };
     if (devtype != null) entry.*.?.type = devtype.?;
 
@@ -47,9 +46,17 @@ pub fn get_disk_by_idx(index: usize) ?DiskEntry {
 
 pub fn lsblk() void {
     for (disk_entry_list, 0..) |entry, i| {
-        if (entry != null) {
+        if (entry) |e| {
 
-            debug.print("{} : {s}\n",.{ i, entry.?.type });
+            const size_bytes = e.sectors_length * 512;
+
+            var j: usize = 0;
+            while (true) : (j += 1) if (size_bytes >= units[j].size) break;
+
+            const size_float: f64 = @floatFromInt(size_bytes);
+            const unit_float: f64 = @floatFromInt(units[j].size);
+
+            debug.print("{: >4} : {s}  {d:.2} {s}\n",.{ i, entry.?.type, size_float/unit_float, units[j].name });
 
         }
     }
@@ -59,6 +66,11 @@ pub const DiskEntry = struct {
 
     pub const ReadWriteHook = *const fn (ctx: *anyopaque, sector: usize, buffer: [*]u8, length: usize) callconv(.c) bool;
     pub const RemoveHook = *const fn (ctx: *anyopaque) callconv(.c) void;
+    pub const VTable = extern struct {
+        read: ReadWriteHook,
+        write: ReadWriteHook,
+        remove: RemoveHook,
+    };
     const default_type: []const u8 = "UNK";
 
     /// Pointer to the guest context
@@ -68,14 +80,14 @@ pub const DiskEntry = struct {
     /// e.g. `flash`, `CD`, `SSD`, `HHD`, `nVME`
     type: []const u8 = default_type,
 
-    vtable_read: ReadWriteHook,
-    vtable_write: ReadWriteHook,
-    vtable_remove: RemoveHook,
+    /// The disk length in sectors of 512 bytes
+    sectors_length: usize,
 
+    vtable: *const VTable,
 
     /// Performs a read operation
     pub fn read(s: @This(), sector: usize, buffer: []u8) !void {
-        const ok = s.vtable_read(s.context, sector, buffer.ptr, buffer.len);
+        const ok = s.vtable.read(s.context, sector, buffer.ptr, buffer.len);
         if (!ok) return error.CannotRead;
     }
 

@@ -109,7 +109,7 @@ fn iterate_ports(abar: *HBAMem) void {
             const dt = check_type(port);
             if (dt == .sata) {
                 debug.err("SATA drive found in port {}\n", .{i});
-                sata.init_disk(abar, port);
+                sata.init_disk(abar, port) catch debug.err("Error while initializing SATA\n", .{});
             }
             else if (dt == .satapi) debug.err("SATAPI drive found in port {}\n", .{i})
             else if (dt == .semb) debug.err("SEMB drive found in port {}\n", .{i})

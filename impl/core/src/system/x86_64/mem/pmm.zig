@@ -4,13 +4,7 @@ const debug = root.debug;
 
 const paging = @import("paging.zig");
 
-const units = [_]struct { name: []const u8, size: u128 } {
-    .{ .name = "TiB", .size = 1024 * 1024 * 1024 * 1024 },
-    .{ .name = "GiB", .size = 1024 * 1024 * 1024 },
-    .{ .name = "MiB", .size = 1024 * 1024 },
-    .{ .name = "KiB", .size = 1024 },
-    .{ .name = "B",   .size = 1 },
-};
+const units = root.utils.units.data;
 
 var memory_blocks_root: *Block = undefined;
 var memory_blocks_buffer: []Block = undefined;
