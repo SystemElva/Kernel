@@ -11,6 +11,8 @@ pub const mem = @import("mem/mem.zig");
 pub const debug = @import("debug/debug.zig");
 /// Simple CPU-based graphics library
 pub const gl = @import("gl/gl.zig");
+/// SystemElva File System interface
+pub const fs = @import("fs/fs.zig");
 /// Devices management
 pub const devices = @import("devices/devices.zig");
 /// Users, authentication and permissions
@@ -61,6 +63,7 @@ pub fn main(_boot_info: BootInfo) noreturn {
  
     debug.err("# Initializing OS specific\n", .{});
 
+    fs.init();
     auth.init();   
     devices.init();
     modules.init();         
