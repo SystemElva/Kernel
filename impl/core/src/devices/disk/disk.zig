@@ -32,10 +32,20 @@ pub fn append_device(
     const entry = &disk_entry_list[free_slot];
     entry.* = .{
         .context = ctx,
+        
+        .fs_node = undefined,
+
         .sectors_length = seclen,
         .vtable = vtable
     };
     if (devtype != null) entry.*.?.type = devtype.?;
+
+    entry.*.?.fs_node = .init(entry.*.?.type, free_slot, allocator);
+    
+    const dev_dir = root.fs.get_root().branch("dev").val;
+    _ = dev_dir.append(&entry.*.?.fs_node.node);
+
+    root.fs.lsdir(dev_dir);
 
     return free_slot;
 }
@@ -73,6 +83,9 @@ pub const DiskEntry = struct {
     };
     const default_type: []const u8 = "UNK";
 
+    /// Disk file node
+    fs_node: root.fs.default_nodes.DiskEntry,
+
     /// Pointer to the guest context
     context: *anyopaque,
 
@@ -83,6 +96,8 @@ pub const DiskEntry = struct {
     /// The disk length in sectors of 512 bytes
     sectors_length: usize,
 
+    /// Virtual functions table associated with this
+    /// entry
     vtable: *const VTable,
 
     /// Performs a read operation

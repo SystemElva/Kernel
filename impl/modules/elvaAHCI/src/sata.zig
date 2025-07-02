@@ -52,7 +52,7 @@ pub fn init_disk(abar: *HBAMem, port: *HBAPort) !void {
     };
     _ = dev.disk.append_device(
         ctx,
-        if (rotation_rate == 0) @as([]const u8, "SSD") else @as([]const u8, "HDD"),
+        if (rotation_rate == 0) @as([]const u8, "SATA-SSD") else @as([]const u8, "SATA-HDD"),
         total_vsectors,
         &sata_vtable
     );
